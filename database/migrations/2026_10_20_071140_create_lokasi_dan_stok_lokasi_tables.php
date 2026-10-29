@@ -6,15 +6,12 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('lokasi', function (Blueprint $table) {
             $table->id();
             $table->string('nama')->unique();
-             // true = tempat penyimpanan (gudang). Barang keluar mengambil dari lokasi non-gudang lebih dulu.
+            // true = tempat penyimpanan (gudang). Barang keluar mengambil dari lokasi non-gudang lebih dulu.
             $table->boolean('is_gudang')->default(false);
             $table->timestamps();
         });
@@ -25,13 +22,11 @@ return new class extends Migration
             $table->foreignId('lokasi_id')->constrained('lokasi');
             $table->unsignedInteger('jumlah')->default(0);
             $table->timestamps();
+
             $table->unique(['barang_id', 'lokasi_id']);
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('stok_lokasi');

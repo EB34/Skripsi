@@ -12,6 +12,14 @@ class Barang extends Model
     public function detailPembelian() { return $this->hasMany(DetailPembelian::class, 'barang_id'); }
     public function mutasiStok() { return $this->hasMany(MutasiStok::class, 'barang_id'); }
     public function kondisi() { return $this->hasMany(KondisiBarang::class, 'barang_id'); }
+    public function laporanRusak() { return $this->hasMany(BarangRusak::class, 'barang_id'); }
+    public function stokLokasi() { return $this->hasMany(StokLokasi::class, 'barang_id'); }
+
+    /** Barang yang stoknya mencapai atau di bawah batas minimumnya sendiri (sudah termasuk yang habis). */
+    public function scopeMenipis($query)
+    {
+        return $query->whereColumn('stok_tersedia', '<=', 'stok_minimum');
+    }
 
     /** Batch FIFO yang masih ada sisanya, dari yang terlama (aturan sama dengan keluarFifo). */
     public function batchAktif()
@@ -33,7 +41,10 @@ class Barang extends Model
             ->value('total');
     }
 
-    /** Status stok: habis / menipis / aman. Dipakai di view sebagai $barang->status_stok */
+    /**
+     * Status stok: habis / menipis / aman.
+     * "Menipis" jika stok <= stok_minimum milik barang itu sendiri.
+     */
     public function getStatusStokAttribute(): string
     {
         if ($this->stok_tersedia <= 0) {
@@ -44,6 +55,15 @@ class Barang extends Model
         }
         return 'aman';
     }
+
+    /** Label kategori untuk tabel monitoring. */
+    public function getKategoriLabelAttribute(): string
+    {
+        return match ($this->jenis) {
+            'frame'    => 'Frame Kacamata',
+            'lensa'    => 'Lensa',
+            'softlens' => 'Softlens',
+            default    => ucfirst((string) $this->jenis),
+        };
+    }
 }
-
-

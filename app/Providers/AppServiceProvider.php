@@ -7,6 +7,7 @@ use App\Models\PesananKacamata;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use App\View\Composers\StatusBarComposer;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -29,5 +30,6 @@ class AppServiceProvider extends ServiceProvider
                 'pesananAktif' => PesananKacamata::whereIn('status', ['menunggu', 'dikerjakan'])->count(),
             ]);
         });
+        View::composer('layouts.app', StatusBarComposer::class);
     }
 }

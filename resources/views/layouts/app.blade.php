@@ -222,9 +222,8 @@
 <header class="topbar">
     <div class="logo-box">Logo</div>
 
-    <div class="topbar-pills">
-        <span class="pill-info">{{ $stokMenipis }} Item Stok Menipis</span>
-        <span class="pill-info">{{ $pesananAktif }} Pesanan Aktif</span>
+    <div class="flex-grow-1 d-flex justify-content-center">
+        @include('layouts._pill_status')
     </div>
 
     <div class="dropdown">
