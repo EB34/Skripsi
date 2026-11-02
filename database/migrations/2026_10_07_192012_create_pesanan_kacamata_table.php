@@ -6,26 +6,32 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('pesanan_kacamata', function (Blueprint $table) {
             $table->id();
+            $table->string('nomor_pesanan')->unique();                          // ORD-ddmmyyyy-urutan
+
             $table->foreignId('customer_id')->constrained('customer');
+            $table->foreignId('refraksi_id')->constrained('refraksi');          // resep diambil dari riwayat refraksi pelanggan
             $table->foreignId('frame_id')->nullable()->constrained('barang');   // kosong jika frame bawaan pelanggan
             $table->foreignId('lensa_id')->constrained('barang');               // lensa wajib dari toko
-            $table->foreignId('petugas_id')->nullable()->constrained('users');  // self-assignment
-            $table->enum('status', ['menunggu', 'dikerjakan', 'siap_diambil'])->default('menunggu');
+
+            $table->foreignId('dibuat_oleh')->nullable()->constrained('users')->nullOnDelete(); // yang mencatat pesanan
+            $table->foreignId('petugas_id')->nullable()->constrained('users')->nullOnDelete();  // self-assignment: yang mengerjakan
+
+            $table->enum('status', ['menunggu', 'dikerjakan', 'siap_diambil', 'selesai'])->default('menunggu');
             $table->date('estimasi_selesai')->nullable();
+            $table->text('keterangan')->nullable();
+
+            $table->timestamp('dikerjakan_pada')->nullable();
+            $table->timestamp('siap_diambil_pada')->nullable();
+            $table->timestamp('selesai_pada')->nullable();
+
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('pesanan_kacamata');

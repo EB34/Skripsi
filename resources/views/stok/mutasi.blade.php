@@ -1,37 +1,107 @@
 @extends('layouts.app')
 
-@section('content')
-<div class="container-fluid">
-    @include('stok._header', ['aktif' => 'mutasi'])
+@push('styles')
+<style>
+    .panel-filter {
+        display: flex; align-items: center; gap: 16px;
+        background: #efefef;
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 16px;
+    }
+    .tipe-label { font-size: .78rem; color: #555; white-space: nowrap; }
+    .tipe-btn {
+        background: #fff; color: #1e1e1e;
+        border: 0; border-radius: 999px;
+        min-width: 230px;
+        padding: 7px 16px;
+        font-size: .8rem;
+    }
+    .tipe-menu {
+        padding: 0;
+        border: 1px solid #d9d9d9;
+        border-radius: 6px;
+        min-width: 260px;
+        overflow: hidden;
+    }
+    .tipe-menu .dropdown-item {
+        text-align: center;
+        font-size: .8rem;
+        padding: 10px 14px;
+        border-bottom: 1px solid #e3e3e3;
+    }
+    .tipe-menu li:last-child .dropdown-item { border-bottom: 0; }
+    .tipe-menu .dropdown-item.active { background: #fff3b0; color: #1e1e1e; }
+    .tipe-menu .dropdown-item:hover { background: #f4f4f4; }
 
-    <form method="GET" action="{{ route('stok.mutasi') }}" class="row g-2 mb-3 align-items-center">
-        <div class="col-md-6">
-            <input type="text" name="cari" value="{{ request('cari') }}" class="form-control"
+    .naik { color: #1f9d4a; font-weight: 600; }
+    .turun { color: #e03131; font-weight: 600; }
+</style>
+@endpush
+
+@section('content')
+@php
+    // Label di dropdown mengikuti mockup (lebih panjang dari label di tabel).
+    // Hanya mengganti kunci yang memang ada di MutasiStok::JENIS.
+    $labelDropdown = $jenisMutasi;
+    foreach ([
+        'barang_masuk' => 'Stok Masuk (Pembelian Supplier)',
+        'penjualan'    => 'Stok Terjual (POS Kasir)',
+    ] as $kunci => $teks) {
+        if (isset($labelDropdown[$kunci])) {
+            $labelDropdown[$kunci] = $teks;
+        }
+    }
+    $tipeAktif = request('tipe');
+@endphp
+
+<div class="container-fluid">
+    @include('stok.header', ['aktif' => 'mutasi'])
+
+    <form method="GET" action="{{ route('stok.mutasi') }}" class="panel-filter">
+        <div class="search-box">
+            <i class="bi bi-search"></i>
+            <input type="text" name="cari" value="{{ request('cari') }}"
                    placeholder="Cari transaksi mutasi, SKU, no ref">
         </div>
-        <div class="col-md-4 ms-auto">
-            <div class="input-group">
-                <span class="input-group-text">Tipe Mutasi:</span>
-                <select name="tipe" class="form-select" onchange="this.form.submit()">
-                    <option value="">Semua Tipe Mutasi</option>
-                    @foreach($jenisMutasi as $kunci => $label)
-                        <option value="{{ $kunci }}" @selected(request('tipe') === $kunci)>{{ $label }}</option>
-                    @endforeach
-                </select>
-            </div>
+        @if($tipeAktif)
+            <input type="hidden" name="tipe" value="{{ $tipeAktif }}">
+        @endif
+
+        <span class="tipe-label">Tipe Mutasi:</span>
+        <div class="dropdown">
+            <button class="tipe-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                {{ $labelDropdown[$tipeAktif] ?? 'Semua Tipe Mutasi' }}
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end tipe-menu">
+                <li>
+                    <a class="dropdown-item {{ $tipeAktif ? '' : 'active' }}"
+                       href="{{ route('stok.mutasi', array_filter(['cari' => request('cari')])) }}">
+                        Semua Tipe Mutasi
+                    </a>
+                </li>
+                @foreach($labelDropdown as $kunci => $teks)
+                    <li>
+                        <a class="dropdown-item {{ $tipeAktif === $kunci ? 'active' : '' }}"
+                           href="{{ route('stok.mutasi', array_filter(['cari' => request('cari'), 'tipe' => $kunci])) }}">
+                            {{ $teks }}
+                        </a>
+                    </li>
+                @endforeach
+            </ul>
         </div>
     </form>
 
-    <div class="card shadow-sm">
+    <div class="tabel-mockup">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+            <table class="table align-middle">
+                <thead>
                     <tr>
                         <th>Tanggal &amp; Waktu</th>
                         <th>Nama &amp; SKU Barang</th>
                         <th>Jenis Mutasi</th>
-                        <th class="text-center">Perubahan</th>
-                        <th class="text-center">Stok Akhir</th>
+                        <th>Perubahan</th>
+                        <th>Stok Akhir</th>
                         <th>No Referensi</th>
                         <th>Keterangan</th>
                         <th>User</th>
@@ -40,28 +110,30 @@
                 <tbody>
                 @forelse($mutasi as $m)
                     <tr>
-                        <td>{{ \Carbon\Carbon::parse($m->tanggal)->format('d/m/Y H.i') }}</td>
-                        <td>
-                            <div class="fw-semibold">{{ ucfirst($m->barang?->jenis ?? '') }} {{ $m->barang?->merk ?? '-' }}</div>
-                            <div class="small text-muted font-monospace">{{ $m->barang?->kode_model }}</div>
+                        <td class="mono">
+                            {{ \Carbon\Carbon::parse($m->tanggal)->locale('id')->translatedFormat('d M Y, H.i') }}
                         </td>
-                        <td>{{ $m->jenis_label }}</td>
-                        <td class="text-center">
+                        <td>
+                            <div class="fw-bold">{{ ucfirst($m->barang?->jenis ?? '') }} {{ $m->barang?->merk ?? '-' }}</div>
+                            <div class="mono sku-kecil">{{ $m->barang?->kode_model }}</div>
+                        </td>
+                        <td class="fw-semibold">{{ $m->jenis_label }}</td>
+                        <td>
                             @if($m->jumlah > 0)
-                                <span class="text-success fw-semibold">&uarr; +{{ $m->jumlah }}</span>
+                                <span class="naik"><i class="bi bi-arrow-up"></i> +{{ $m->jumlah }}</span>
                             @elseif($m->jumlah < 0)
-                                <span class="text-danger fw-semibold">&darr; {{ $m->jumlah }}</span>
+                                <span class="turun"><i class="bi bi-arrow-down"></i> {{ $m->jumlah }}</span>
                             @else
                                 <span class="text-muted">&mdash;</span>
                             @endif
                         </td>
-                        <td class="text-center">{{ $m->saldo_setelah }}</td>
-                        <td class="font-monospace small">{{ $m->no_referensi }}</td>
-                        <td class="small">{{ $m->keterangan_tampil }}</td>
-                        <td class="small">{{ $m->user?->name ?? $m->user?->nama ?? $m->user?->username ?? '-' }}</td>
+                        <td>{{ $m->saldo_setelah }}</td>
+                        <td class="mono">{{ $m->no_referensi }}</td>
+                        <td>{{ $m->keterangan_tampil }}</td>
+                        <td>{{ $m->user?->nama ?? '-' }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="8" class="text-center text-muted py-4">Belum ada mutasi stok.</td></tr>
+                    <tr><td colspan="8" class="text-muted py-4">Belum ada mutasi stok.</td></tr>
                 @endforelse
                 </tbody>
             </table>
@@ -71,5 +143,5 @@
     <div class="mt-3">{{ $mutasi->links() }}</div>
 </div>
 
-@include('stok._modal_lapor')
+@include('stok.modal_lapor')
 @endsection

@@ -13,13 +13,14 @@ return new class extends Migration
     {
         Schema::create('detail_pembelian', function (Blueprint $table) {
             $table->id();
-        $table->foreignId('pembelian_id')->constrained('pembelian')->cascadeOnDelete();
-        $table->foreignId('barang_id')->constrained('barang');
-        $table->unsignedInteger('jumlah');
-        $table->decimal('harga_beli', 12, 2);
-        $table->unsignedInteger('sisa_jumlah'); // sisa batch buat FIFO
-        $table->timestamps();
-        $table->index(['barang_id', 'sisa_jumlah']);
+            // Boleh kosong: batch hasil koreksi stok (opname) tidak berasal dari PO
+            $table->foreignId('pembelian_id')->nullable()->constrained('pembelian')->cascadeOnDelete();
+            $table->foreignId('barang_id')->constrained('barang');
+            $table->unsignedInteger('jumlah');
+            $table->decimal('harga_beli', 12, 2);
+            $table->unsignedInteger('sisa_jumlah'); // sisa batch buat FIFO
+            $table->timestamps();
+            $table->index(['barang_id', 'sisa_jumlah']);
         });
     }
 

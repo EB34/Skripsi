@@ -96,7 +96,7 @@
                             <div class="mono fw-semibold">{{ $p->nomor_po }}</div>
                             <div class="text-muted">{{ $p->tanggal->format('d M Y') }}</div>
                         </td>
-                        <td>{{ $p->supplier->nama }}</td>
+                        <td>{{ $p->supplier->nama_perusahaan }}</td>
                         <td>
                             @foreach ($p->detail as $d)
                                 <div>
@@ -178,15 +178,16 @@
 
                                 <div class="sup-list d-none" id="sup-list">
                                     @foreach ($supplier as $s)
-                                    <div class="sup-opt" data-id="{{ $s->id }}"
-                                    data-nama="{{ $s->nama_perusahaan }}"
-                                    data-kontak="{{ $s->nama_kontak }}">
-                                    {{ $s->nama_perusahaan }}
-                                    @if ($s->nama_kontak)
-                                    <small>{{ $s->nama_kontak }}</small>
-                                    @endif
-                                </div>
-                                @endforeach
+                                        @php $namaKontak = $s->kontak->pluck('nama')->implode(', '); @endphp
+                                            <div class="sup-opt" data-id="{{ $s->id }}"
+                                                data-nama="{{ $s->nama_perusahaan }}"
+                                                data-kontak="{{ $namaKontak }}">
+                                                {{ $s->nama_perusahaan }}
+                                        @if ($namaKontak !== '')
+                                            <small>{{ $namaKontak }}</small>
+                                        @endif
+                                        </div>
+                                    @endforeach
                                 
                                 <div id="sup-kosong" class="d-none">Supplier tidak ditemukan.</div>
                                 <a href="{{ route('supplier.index') }}" class="sup-tambah">
@@ -257,7 +258,7 @@
                                     Checklist Penerimaan Fisik &amp; Quality Control
                                 </h5>
                                 <div class="text-muted mono" style="font-size:.75rem">
-                                    {{ $p->nomor_po }} &nbsp;|&nbsp; Supplier: {{ $p->supplier->nama }}
+                                    {{ $p->nomor_po }} &nbsp;|&nbsp; Supplier: {{ $p->supplier->nama_perusahaan }}
                                 </div>
                             </div>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

@@ -250,10 +250,10 @@
         $menu = [
             ['Dashboard',           'bi-grid-1x2',        'dashboard',      'dashboard'],
             ['Data Barang',         'bi-box-seam',        'barang.index',   'barang.*'],
-            ['Pengelolaan Stok',    'bi-boxes',           null,             null],
+            ['Pengelolaan Stok',    'bi-boxes',           'stok.index',             'stok.*'],
             ['Transaksi Penjualan', 'bi-cart3',           'penjualan.create', 'penjualan.*'],
             ['Pembelian Supplier',  'bi-truck',           'pembelian.index', 'pembelian.*'],
-            ['Pesanan Kacamata',    'bi-eyeglasses',      null,             null],
+            ['Pesanan Kacamata',    'bi-eyeglasses',      'pesanan.index',  'pesanan.*'],
             ['Data Pelanggan',      'bi-people',          'customer.index', 'customer.*'],
             ['Data Supplier',       'bi-shop',            'supplier.index',   'supplier.*'],
             ['Modul Retur',         'bi-arrow-left-right', null,            null],

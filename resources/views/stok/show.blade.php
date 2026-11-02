@@ -13,12 +13,6 @@
         </button>
     </div>
 
-    @if(session('success'))
-        <div class="alert alert-success">{{ session('success') }}</div>
-    @endif
-    @if(session('error'))
-        <div class="alert alert-danger">{{ session('error') }}</div>
-    @endif
     @if($errors->any())
         <div class="alert alert-danger">
             <ul class="mb-0">
@@ -136,7 +130,12 @@
                 <tbody>
                 @forelse($batchAktif as $bt)
                     <tr>
-                        <td>{{ \Carbon\Carbon::parse($bt->tanggal_masuk)->format('d/m/Y') }}</td>
+                        <td>
+                            {{ \Carbon\Carbon::parse($bt->tanggal_masuk)->format('d/m/Y') }}
+                            @if(!$bt->pembelian_id)
+                                <span class="badge bg-warning text-dark">Koreksi</span>
+                            @endif
+                        </td>
                         <td class="text-end">{{ $bt->jumlah_diterima }}</td>
                         <td class="text-end">{{ $bt->sisa_jumlah }}</td>
                         <td class="text-end">Rp {{ number_format($bt->harga_beli, 0, ',', '.') }}</td>
@@ -242,7 +241,7 @@
     </div>
 </div>
 
-{{-- Modal koreksi stok (opname) --}}
+{{-- Modal koreksi stok (opname): boleh mengurangi maupun menambah --}}
 <div class="modal fade" id="modalSesuaikan" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <form method="POST" action="{{ route('stok.sesuaikan', $barang->id) }}" class="modal-content">
@@ -258,14 +257,30 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Jumlah fisik (hasil hitung)</label>
-                    <input type="number" name="jumlah_fisik" min="0" max="{{ $barang->stok_tersedia }}"
+                    <input type="number" name="jumlah_fisik" id="fisik" min="0"
+                           data-stok="{{ $barang->stok_tersedia }}"
                            value="{{ old('jumlah_fisik') }}" class="form-control" required>
-                    <div class="form-text">Hanya boleh lebih kecil atau sama dengan stok sistem.</div>
+                    <div class="form-text">
+                        Boleh lebih kecil (barang hilang, selisih hitung) atau lebih besar (salah hitung) dari stok sistem.
+                    </div>
                 </div>
+
+                {{-- Hanya tampil kalau jumlah fisik lebih besar dari stok sistem --}}
+                <div class="mb-3 d-none" id="blok-harga">
+                    <label class="form-label">Harga beli per unit (Rp)</label>
+                    <input type="number" name="harga_beli" id="harga-beli" min="0" step="any"
+                           value="{{ old('harga_beli', $hargaTerakhir) }}" class="form-control"
+                           placeholder="Belum ada riwayat harga, isi manual" disabled>
+                    <div class="form-text">
+                        Stok bertambah <strong id="info-tambah">0</strong> unit. Dicatat sebagai batch FIFO baru
+                        dengan harga ini dan masuk ke lokasi gudang. Terisi otomatis dari harga batch terbaru, boleh diubah.
+                    </div>
+                </div>
+
                 <div class="mb-3">
                     <label class="form-label">Alasan</label>
-                    <input type="text" name="alasan" maxlength="255" value="{{ old('alasan') }}"
-                           class="form-control" placeholder="Contoh: barang hilang, selisih hitung" required>
+                    <input type="text" name="alasan" maxlength="150" value="{{ old('alasan') }}"
+                           class="form-control" placeholder="Contoh: barang hilang, salah hitung awal" required>
                 </div>
             </div>
             <div class="modal-footer">
@@ -276,3 +291,29 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+    var fisik = document.getElementById('fisik');
+    var blok  = document.getElementById('blok-harga');
+    var harga = document.getElementById('harga-beli');
+    var info  = document.getElementById('info-tambah');
+    var stok  = parseInt(fisik.dataset.stok, 10);
+
+    // Kolom harga hanya aktif kalau jumlah fisik lebih besar dari stok sistem
+    function perbarui() {
+        var nilai  = parseInt(fisik.value, 10);
+        var tambah = (!isNaN(nilai) && nilai > stok) ? nilai - stok : 0;
+
+        blok.classList.toggle('d-none', tambah === 0);
+        harga.disabled = (tambah === 0);
+        harga.required = (tambah > 0);
+        info.textContent = tambah;
+    }
+
+    fisik.addEventListener('input', perbarui);
+    perbarui();
+})();
+</script>
+@endpush

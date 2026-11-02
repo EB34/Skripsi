@@ -318,7 +318,8 @@
 {{-- ===== Modal tambah / ubah pelanggan ===== --}}
 <div class="modal fade" id="modalCustomer" tabindex="-1" aria-hidden="true"
      data-action-store="{{ route('customer.store') }}"
-     data-buka="{{ $errors->any() ? old('_mode') : '' }}"
+     data-buka="{{ ($errors->any() || session('duplikat')) ? old('_mode') : '' }}"
+     data-duplikat="{{ session('duplikat') ? '1' : '' }}"
      data-action-lama="{{ (old('_mode') === 'edit' && old('_id')) ? route('customer.update', old('_id')) : '' }}">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content" style="background: #efefef;">
@@ -327,6 +328,7 @@
                 <input type="hidden" name="_method" value="PUT" id="inputMethod" disabled>
                 <input type="hidden" name="_mode" id="inputMode" value="{{ old('_mode', 'tambah') }}">
                 <input type="hidden" name="_id" id="inputId" value="{{ old('_id') }}">
+                <input type="hidden" name="konfirmasi_duplikat" id="inputKonfirmasi" value="">
 
                 <div class="modal-header border-0">
                     <h5 class="modal-title fw-bold" id="judulModal">Tambah Pelanggan Baru</h5>
@@ -364,7 +366,55 @@
     </div>
 </div>
 
-{{-- ===== Modal input pemeriksaan & resep baru ===== --}}
+{{-- ===== Popup: data pelanggan serupa sudah ada ===== --}}
+@php
+    $duplikat    = session('duplikat', []);
+    $adaNamaSama = collect($duplikat)->contains('sama_nama', true);
+@endphp
+<div class="modal fade" id="modalDuplikat" tabindex="-1" aria-hidden="true"
+     data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background: #efefef;">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-exclamation-triangle text-warning"></i> Data pelanggan serupa sudah ada
+                </h5>
+            </div>
+
+            <div class="modal-body">
+                <p class="small mb-2">
+                    {{ $adaNamaSama ? 'Sudah ada pelanggan dengan nama yang sama.' : 'Nomor WhatsApp ini sudah dipakai pelanggan lain.' }}
+                    Kalau ini orang yang berbeda (misalnya dua orang bernama sama), Anda bisa tetap melanjutkan.
+                    Data yang sudah ada tidak akan diubah.
+                </p>
+
+                <div class="bg-white rounded px-3 py-1" style="max-height: 240px; overflow-y: auto;">
+                    @foreach ($duplikat as $d)
+                        <div class="border-bottom py-2 small">
+                            <div class="fw-semibold">{{ $d['nama'] }}</div>
+                            <div class="text-muted">
+                                <i class="bi bi-telephone"></i> {{ $d['wa'] ?? 'Belum ada nomor' }}
+                                &middot; {{ $d['transaksi'] }} transaksi
+                            </div>
+                            <div>
+                                @if ($d['sama_nama'])<span class="badge bg-warning text-dark">Nama sama</span>@endif
+                                @if ($d['sama_wa'])<span class="badge bg-info text-dark">Nomor WA sama</span>@endif
+                                @if (! $d['sama_nama'] && ! $d['sama_wa'])<span class="badge bg-secondary">Nama mirip</span>@endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="modal-footer border-0">
+                <button type="button" class="btn-abu border-0" id="btnKembaliForm">Kembali ke Form</button>
+                <button type="button" class="btn btn-primary" id="btnLanjutDuplikat">Tetap Lanjutkan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ===== Popup: input pemeriksaan & resep baru ===== --}}
 <div class="modal fade" id="modalResep" tabindex="-1" aria-hidden="true"
      data-buka="{{ (old('_form') === 'resep' && $errors->any()) ? '1' : '' }}">
     <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -461,6 +511,30 @@ document.addEventListener('DOMContentLoaded', function () {
     var inputNama = document.getElementById('inputNama');
     var inputWa = document.getElementById('inputWa');
 
+    // ---------- Popup "data serupa sudah ada" ----------
+    var modalDupEl = document.getElementById('modalDuplikat');
+    var modalDup = new bootstrap.Modal(modalDupEl);
+    var inputKonfirmasi = document.getElementById('inputKonfirmasi');
+
+    // Tetap lanjutkan: kirim ulang form yang sama dengan penanda konfirmasi
+    document.getElementById('btnLanjutDuplikat').addEventListener('click', function () {
+        inputKonfirmasi.value = '1';
+        form.submit();
+    });
+
+    // Kembali ke form untuk mengubah nama / nomor
+    document.getElementById('btnKembaliForm').addEventListener('click', function () {
+        modalDupEl.addEventListener('hidden.bs.modal', function () {
+            modal.show();
+        }, { once: true });
+        modalDup.hide();
+    });
+
+    // Setiap kali form dibuka, penanda konfirmasi dikosongkan lagi
+    modalEl.addEventListener('show.bs.modal', function () {
+        inputKonfirmasi.value = '';
+    });
+
     function bersihkanError() {
         form.querySelectorAll('.is-invalid').forEach(function (el) {
             el.classList.remove('is-invalid');
@@ -502,10 +576,16 @@ document.addEventListener('DOMContentLoaded', function () {
     var bukaLagi = modalEl.dataset.buka;
     if (bukaLagi === 'edit') {
         modeUbah(modalEl.dataset.actionLama, inputId.value, null, null);
-        modal.show();
     } else if (bukaLagi === 'tambah') {
         modeTambah(false);
-        modal.show();
+    }
+    if (bukaLagi === 'edit' || bukaLagi === 'tambah') {
+        // Kalau server menemukan data serupa, tampilkan popup konfirmasi dulu (bukan form)
+        if (modalEl.dataset.duplikat === '1') {
+            modalDup.show();
+        } else {
+            modal.show();
+        }
     }
 
     // ---------- Mode kotak <-> mode detail ----------

@@ -23,7 +23,7 @@ class PembelianController extends Controller
 
         return view('pembelian.index', [
             'pembelian' => $pembelian,
-            'supplier'  => Supplier::orderBy('nama_perusahaan')->get(),     // untuk popup buat PO
+            'supplier'  => Supplier::with('kontak')->orderBy('nama_perusahaan')->get(),     // untuk popup buat PO     // untuk popup buat PO
             'barang'    => Barang::orderBy('kode_model')->get(),  // untuk popup buat PO
         ]);
     }

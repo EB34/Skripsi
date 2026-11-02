@@ -51,7 +51,8 @@
 <div class="barang-grid">
     @forelse ($barang as $b)
         @php
-            $kelasStok = $b->stok_tersedia <= 0 ? 'habis' : ($b->stok_tersedia <= $batasStok ? 'menipis' : '');
+            // Definisi "menipis" per barang (stok_minimum), sama dengan halaman Pengelolaan Stok
+            $kelasStok = $b->status_stok === 'aman' ? '' : $b->status_stok;
             $ikonJenis = ['frame' => 'bi-eyeglasses', 'lensa' => 'bi-record-circle', 'softlens' => 'bi-eye'][$b->jenis] ?? 'bi-box';
         @endphp
 

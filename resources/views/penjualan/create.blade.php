@@ -152,7 +152,8 @@
         <div class="pos-grid" id="grid-barang">
             @foreach ($barang as $b)
                 @php
-                    $kelasStok = $b->stok_tersedia <= 0 ? 'habis' : ($b->stok_tersedia <= $batasStok ? 'menipis' : '');
+                    // Definisi "menipis" per barang (stok_minimum), sama dengan halaman Pengelolaan Stok
+                    $kelasStok = $b->status_stok === 'aman' ? '' : $b->status_stok;
                 @endphp
                 <div class="pos-card {{ $b->stok_tersedia <= 0 ? 'habis' : '' }}"
                      data-id="{{ $b->id }}"

@@ -13,9 +13,7 @@ return new class extends Migration
     {
         Schema::create('supplier', function (Blueprint $table) {
             $table->id();
-            $table->string('nama_perusahaan');
-            $table->string('nama_kontak')->nullable();
-            $table->string('wa_kontak')->nullable();
+            $table->string('nama_perusahaan')->unique(); // tidak boleh ada dua supplier dengan nama sama
             $table->string('wa_perusahaan')->nullable();
             $table->string('email')->nullable();
             $table->text('alamat')->nullable();

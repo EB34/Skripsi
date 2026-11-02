@@ -6,8 +6,12 @@ use App\Models\Barang;
 use App\Models\BarangRusak;
 use App\Models\Lokasi;
 use App\Models\MutasiStok;
+use App\Models\Pembelian;
+use App\Models\Penjualan;
 use App\Services\StokService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use RuntimeException;
 
 class StokController extends Controller
@@ -50,11 +54,23 @@ class StokController extends Controller
                           $w->where('kode_model', 'like', "%{$cari}%")
                             ->orWhere('merk', 'like', "%{$cari}%");
                       });
+                  })
+                  // Nomor referensi: cari di nomor PO (pembelian) dan nomor nota (penjualan)
+                  ->orWhere(function ($r) use ($cari) {
+                      $r->where('referensi_tipe', 'pembelian')
+                        ->whereIn('referensi_id', Pembelian::where('nomor_po', 'like', "%{$cari}%")->select('id'));
+                  })
+                  ->orWhere(function ($r) use ($cari) {
+                      $r->where('referensi_tipe', 'penjualan')
+                        ->whereIn('referensi_id', Penjualan::where('nomor_nota', 'like', "%{$cari}%")->select('id'));
                   });
 
-                // "no ref" dicari lewat angka id referensi, misal 12 untuk PO-12
+                // Referensi lain (BR-, OPN-) tidak punya nomor dokumen, jadi dicari lewat angka id-nya
                 if (ctype_digit($cari)) {
-                    $q->orWhere('referensi_id', (int) $cari);
+                    $q->orWhere(function ($r) use ($cari) {
+                        $r->whereNotIn('referensi_tipe', ['pembelian', 'penjualan'])
+                          ->where('referensi_id', (int) $cari);
+                    });
                 }
             });
         }
@@ -62,6 +78,9 @@ class StokController extends Controller
         $mutasi = $query->orderByDesc('tanggal')->orderByDesc('id')
             ->paginate(15)
             ->withQueryString();
+
+        // Ambil nomor PO / nomor nota asli untuk baris-baris di halaman ini (2 query)
+        MutasiStok::muatNomorDokumen($mutasi->getCollection());
 
         return view('stok.mutasi', [
             'mutasi'      => $mutasi,
@@ -104,7 +123,7 @@ class StokController extends Controller
                 (int) $data['barang_id'],
                 (int) $data['jumlah'],
                 $data['alasan'],
-                auth()->id()
+                Auth::id()
             );
         } catch (RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());
@@ -121,7 +140,7 @@ class StokController extends Controller
         ]);
 
         try {
-            $stokService->putuskanRusak($barangRusak->id, $data['keputusan'], auth()->id());
+            $stokService->putuskanRusak($barangRusak->id, $data['keputusan'], Auth::id());
         } catch (RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
@@ -134,7 +153,7 @@ class StokController extends Controller
     }
 
     /** Halaman detail satu barang: stok per lokasi, batch FIFO, kartu stok, koreksi, dan pengaturan. */
-    public function show(Barang $barang)
+    public function show(Barang $barang, StokService $stokService)
     {
         $batchAktif = $barang->batchAktif()->get();
         $mutasi     = $barang->mutasiStok()->orderByDesc('tanggal')->orderByDesc('id')->paginate(15);
@@ -144,34 +163,55 @@ class StokController extends Controller
         $daftarLokasi = Lokasi::orderByDesc('is_gudang')->orderBy('id')->get();
         $petaLokasi   = $barang->stokLokasi()->pluck('jumlah', 'lokasi_id');
 
-        return view('stok.show', compact('barang', 'batchAktif', 'mutasi', 'nilai', 'daftarLokasi', 'petaLokasi'));
+        // Harga awal di form koreksi kalau stok ditambah (harga batch terbaru, boleh diubah)
+        $hargaTerakhir = $stokService->hargaBeliTerakhir($barang->id);
+
+        return view('stok.show', compact(
+            'barang', 'batchAktif', 'mutasi', 'nilai', 'daftarLokasi', 'petaLokasi', 'hargaTerakhir'
+        ));
     }
 
+    /** Koreksi stok (opname): boleh mengurangi maupun menambah. */
     public function sesuaikan(Request $request, Barang $barang, StokService $stokService)
     {
         $data = $request->validate([
             'jumlah_fisik' => ['required', 'integer', 'min:0'],
-            'alasan'       => ['required', 'string', 'max:255'],
+            'alasan'       => ['required', 'string', 'max:150'],
+            // Harga beli wajib hanya kalau stok akan bertambah (fisik > stok sistem)
+            'harga_beli'   => [
+                Rule::requiredIf(fn () => (int) $request->input('jumlah_fisik') > (int) $barang->stok_tersedia),
+                'nullable', 'numeric', 'min:0',
+            ],
         ], [
             'jumlah_fisik.required' => 'Jumlah fisik wajib diisi.',
             'jumlah_fisik.integer'  => 'Jumlah fisik harus berupa angka bulat.',
             'jumlah_fisik.min'      => 'Jumlah fisik tidak boleh negatif.',
             'alasan.required'       => 'Alasan penyesuaian wajib diisi.',
+            'alasan.max'            => 'Alasan maksimal 150 karakter.',
+            'harga_beli.required'   => 'Harga beli per unit wajib diisi karena stok bertambah.',
+            'harga_beli.numeric'    => 'Harga beli harus berupa angka.',
+            'harga_beli.min'        => 'Harga beli tidak boleh negatif.',
         ]);
 
         try {
-            $hpp = $stokService->sesuaikan(
+            $hasil = $stokService->sesuaikan(
                 $barang->id,
                 (int) $data['jumlah_fisik'],
                 $data['alasan'],
-                auth()->id()
+                Auth::id(),
+                isset($data['harga_beli']) ? (float) $data['harga_beli'] : null
             );
         } catch (RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }
 
-        return redirect()->route('stok.show', $barang->id)
-            ->with('success', 'Stok berhasil disesuaikan. Nilai persediaan berkurang Rp ' . number_format($hpp, 0, ',', '.') . '.');
+        $nilai = number_format($hasil['nilai'], 0, ',', '.');
+
+        $pesan = $hasil['arah'] === 'tambah'
+            ? "Stok disesuaikan: bertambah {$hasil['jumlah']} unit. Nilai persediaan bertambah Rp {$nilai}."
+            : "Stok disesuaikan: berkurang {$hasil['jumlah']} unit. Nilai persediaan berkurang Rp {$nilai}.";
+
+        return redirect()->route('stok.show', $barang->id)->with('success', $pesan);
     }
 
     /** Pindah barang antar lokasi (bukan FIFO, jumlah sesuai keputusan owner). */
@@ -198,7 +238,7 @@ class StokController extends Controller
                 (int) $data['ke_lokasi_id'],
                 (int) $data['jumlah'],
                 $data['catatan'] ?? null,
-                auth()->id()
+                Auth::id()
             );
         } catch (RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());

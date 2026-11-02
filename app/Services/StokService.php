@@ -8,6 +8,7 @@ use App\Models\DetailPembelian;
 use App\Models\Lokasi;
 use App\Models\MutasiStok;
 use App\Models\StokLokasi;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -22,12 +23,7 @@ class StokService
             $barang->stok_tersedia += $jumlah;
             $barang->save();
 
-            $gudang = Lokasi::where('is_gudang', true)->orderBy('id')->first();
-            if (!$gudang) {
-                throw new RuntimeException(
-                    'Belum ada lokasi gudang. Tambahkan dulu di Pengelolaan Stok > Kelola Lokasi (centang "Gudang").'
-                );
-            }
+            $gudang = $this->gudangTujuan();
             $this->tambahStokLokasi($barang->id, $gudang->id, $jumlah);
 
             $this->catatMutasi($barang, 'barang_masuk', $jumlah, $refTipe, $refId);
@@ -143,33 +139,56 @@ class StokService
 
     /**
      * Penyesuaian stok (opname): menyamakan stok sistem dengan hasil hitung fisik.
-     * Hanya boleh MENGURANGI stok. Pemotongan batch memakai keluarFifo().
-     * Mengembalikan total HPP barang yang dikurangi (nilai kerugian opname).
+     *
+     * - Fisik lebih kecil dari sistem: stok dikurangi lewat keluarFifo() (batch tertua dulu).
+     * - Fisik lebih besar dari sistem: dibuat batch FIFO baru (bukan dari PO) dengan harga beli
+     *   dari $hargaBeli, atau dari batch terbaru barang itu kalau $hargaBeli kosong.
+     *
+     * Mengembalikan ['arah' => 'tambah'|'kurang', 'jumlah' => selisih, 'nilai' => nilai persediaan yang berubah].
      */
-    public function sesuaikan(int $barangId, int $jumlahFisik, string $alasan, ?int $userId = null): float
-    {
-        return DB::transaction(function () use ($barangId, $jumlahFisik, $alasan, $userId) {
+    public function sesuaikan(
+        int $barangId,
+        int $jumlahFisik,
+        string $alasan,
+        ?int $userId = null,
+        ?float $hargaBeli = null
+    ): array {
+        return DB::transaction(function () use ($barangId, $jumlahFisik, $alasan, $userId, $hargaBeli) {
             $barang = Barang::lockForUpdate()->findOrFail($barangId);
 
             if ($jumlahFisik < 0) {
                 throw new RuntimeException('Jumlah fisik tidak boleh negatif.');
             }
 
-            $selisih = $barang->stok_tersedia - $jumlahFisik; // positif = stok berkurang
-
-            if ($selisih < 0) {
-                throw new RuntimeException(
-                    "Jumlah fisik ({$jumlahFisik}) lebih besar dari stok sistem ({$barang->stok_tersedia}). "
-                    . 'Opname hanya boleh mengurangi stok.'
-                );
-            }
+            $selisih = $jumlahFisik - (int) $barang->stok_tersedia; // positif = stok bertambah
 
             if ($selisih === 0) {
                 throw new RuntimeException('Jumlah fisik sama dengan stok sistem, tidak ada yang disesuaikan.');
             }
 
-            return $this->keluarFifo($barangId, $selisih, 'penyesuaian', 'opname', null, $alasan, $userId);
+            if ($selisih < 0) {
+                $hpp = $this->keluarFifo($barangId, -$selisih, 'penyesuaian', 'opname', null, $alasan, $userId);
+
+                return ['arah' => 'kurang', 'jumlah' => -$selisih, 'nilai' => $hpp];
+            }
+
+            return $this->tambahBatchPenyesuaian($barang, $selisih, $alasan, $hargaBeli, $userId);
         });
+    }
+
+    /**
+     * Harga beli per unit dari batch terbaru barang (untuk mengisi form koreksi).
+     * Null kalau barang belum pernah diterima dari PO.
+     */
+    public function hargaBeliTerakhir(int $barangId): ?float
+    {
+        $harga = DetailPembelian::where('barang_id', $barangId)
+            ->whereNotNull('tanggal_masuk')
+            ->orderByDesc('tanggal_masuk')
+            ->orderByDesc('id')
+            ->value('harga_beli');
+
+        return $harga === null ? null : (float) $harga;
     }
 
     /**
@@ -190,7 +209,7 @@ class StokService
                 'alasan'    => $alasan,
                 'status'    => 'menunggu_keputusan',
                 'nilai_hpp' => 0,
-                'user_id'   => $userId ?? auth()->id(),
+                'user_id'   => $userId ?? Auth::id(),
             ]);
 
             // Cek stok, potong batch FIFO, kurangi stok_tersedia dan stok lokasi, catat mutasi.
@@ -248,6 +267,71 @@ class StokService
                 $userId
             );
         });
+    }
+
+    /**
+     * Koreksi stok ke arah tambah: membuat batch FIFO baru (bukan dari PO),
+     * menaikkan stok_tersedia, memasukkan selisih ke gudang, dan mencatat mutasi bertanda +.
+     * Dipanggil dari sesuaikan(), yang sudah membuka transaksi dan mengunci baris barang.
+     */
+    protected function tambahBatchPenyesuaian(
+        Barang $barang,
+        int $tambah,
+        string $alasan,
+        ?float $hargaBeli,
+        ?int $userId
+    ): array {
+        $harga = $hargaBeli ?? $this->hargaBeliTerakhir($barang->id);
+
+        if ($harga === null) {
+            throw new RuntimeException(
+                "Harga beli untuk unit tambahan {$barang->kode_model} wajib diisi (barang ini belum punya riwayat pembelian)."
+            );
+        }
+        if ($harga < 0) {
+            throw new RuntimeException('Harga beli tidak boleh negatif.');
+        }
+
+        $gudang = $this->gudangTujuan();
+
+        // forceFill: tidak bergantung pada $fillable/$guarded di model DetailPembelian
+        $batch = new DetailPembelian();
+        $batch->forceFill([
+            'pembelian_id'     => null,
+            'barang_id'        => $barang->id,
+            'jumlah_dipesan'   => $tambah,
+            'jumlah_diterima'  => $tambah,
+            'jumlah_cacat'     => 0,
+            'keterangan_cacat' => null,
+            'harga_beli'       => $harga,
+            'sisa_jumlah'      => $tambah,
+            'tanggal_masuk'    => now(),
+        ])->save();
+
+        $barang->stok_tersedia += $tambah;
+        $barang->save();
+
+        $this->tambahStokLokasi($barang->id, $gudang->id, $tambah);
+
+        $keterangan = "{$alasan} (+{$tambah} pcs, harga beli Rp " . number_format($harga, 0, ',', '.') . ')';
+
+        $this->catatMutasi($barang, 'penyesuaian', $tambah, 'opname', null, $keterangan, $userId);
+
+        return ['arah' => 'tambah', 'jumlah' => $tambah, 'nilai' => (float) ($tambah * $harga)];
+    }
+
+    /** Lokasi tujuan barang masuk: gudang dengan id terkecil. Ditolak kalau belum ada gudang. */
+    protected function gudangTujuan(): Lokasi
+    {
+        $gudang = Lokasi::where('is_gudang', true)->orderBy('id')->first();
+
+        if (!$gudang) {
+            throw new RuntimeException(
+                'Belum ada lokasi gudang. Tambahkan dulu di Pengelolaan Stok > Kelola Lokasi (centang "Gudang").'
+            );
+        }
+
+        return $gudang;
     }
 
     /** Tambah jumlah barang di satu lokasi (baris dibuat kalau belum ada). */
@@ -314,7 +398,7 @@ class StokService
             'referensi_tipe' => $refTipe,
             'referensi_id'   => $refId,
             'keterangan'     => $keterangan,
-            'user_id'        => $userId ?? auth()->id(),
+            'user_id'        => $userId ?? Auth::id(),
         ]);
     }
 }

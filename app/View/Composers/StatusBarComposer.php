@@ -3,6 +3,7 @@
 namespace App\View\Composers;
 
 use App\Models\Barang;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class StatusBarComposer
@@ -10,7 +11,7 @@ class StatusBarComposer
     public function compose(View $view): void
     {
         // Halaman login tidak perlu angka ini
-        if (!auth()->check()) {
+        if (!Auth::check()) {
             return;
         }
 
