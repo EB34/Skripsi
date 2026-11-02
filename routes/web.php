@@ -10,6 +10,7 @@ use App\Http\Controllers\PenjualanController;
 use App\Http\Controllers\RefraksiController;
 use App\Http\Controllers\StokController;      // BARU
 use App\Http\Controllers\LokasiController;    // BARU
+use App\Http\Controllers\PesananController;   // BARU
 
 // Route::get('/', function () {
 //     return view('welcome');
@@ -51,6 +52,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/lokasi', [LokasiController::class, 'store'])->name('lokasi.store');
     Route::put('/lokasi/{lokasi}', [LokasiController::class, 'update'])->name('lokasi.update');
     Route::delete('/lokasi/{lokasi}', [LokasiController::class, 'destroy'])->name('lokasi.destroy');
+
+     // BARU: Pesanan Kacamata (Owner dan Petugas sama-sama boleh)
+    Route::get('/pesanan', [PesananController::class, 'index'])->name('pesanan.index');
+    Route::post('/pesanan', [PesananController::class, 'store'])->name('pesanan.store');
+    Route::post('/pesanan/{pesanan}/ambil', [PesananController::class, 'ambil'])->name('pesanan.ambil');          // self-assignment
+    Route::patch('/pesanan/{pesanan}/status', [PesananController::class, 'ubahStatus'])->name('pesanan.status');
 
     // Page khusus Owner
     Route::middleware('role:owner')->group(function () {
