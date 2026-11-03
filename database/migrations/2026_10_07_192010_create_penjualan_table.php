@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('penjualan', function (Blueprint $table) {
@@ -18,13 +15,12 @@ return new class extends Migration
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->decimal('diskon', 12, 2)->default(0);
             $table->decimal('total', 12, 2)->default(0);
+            // BARU: berjalan = masih menunggu pesanan/pelunasan, selesai = tuntas, batal = pesanan dibatalkan (DP hangus)
+            $table->enum('status', ['berjalan', 'selesai', 'batal'])->default('selesai');
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('penjualan');

@@ -8,9 +8,9 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\PembelianController;
 use App\Http\Controllers\PenjualanController;
 use App\Http\Controllers\RefraksiController;
-use App\Http\Controllers\StokController;      // BARU
-use App\Http\Controllers\LokasiController;    // BARU
-use App\Http\Controllers\PesananController;   // BARU
+use App\Http\Controllers\StokController;
+use App\Http\Controllers\LokasiController;
+use App\Http\Controllers\PesananController;
 
 // Route::get('/', function () {
 //     return view('welcome');
@@ -32,32 +32,35 @@ Route::middleware('auth')->group(function () {
     Route::resource('pembelian', PembelianController::class)->only(['index', 'store', 'show']);
     Route::post('pembelian/{pembelian}/terima', [PembelianController::class, 'terima'])->name('pembelian.terima');
     Route::resource('penjualan', PenjualanController::class)->only(['index', 'create', 'store', 'show']);
+    Route::post('penjualan/{penjualan}/tutup', [PenjualanController::class, 'tutup'])->name('penjualan.tutup');   // BARU
     Route::resource('barang', BarangController::class)->only(['index', 'store', 'update', 'destroy']);
 
-    // BARU: Pengelolaan Stok, tiga tab
+    // Pengelolaan Stok, tiga tab
     Route::get('/stok', [StokController::class, 'index'])->name('stok.index');
     Route::get('/stok/mutasi', [StokController::class, 'mutasi'])->name('stok.mutasi');
     Route::get('/stok/rusak', [StokController::class, 'rusak'])->name('stok.rusak');
     Route::post('/stok/rusak', [StokController::class, 'laporRusak'])->name('stok.rusak.store');
     Route::post('/stok/rusak/{barangRusak}/putuskan', [StokController::class, 'putuskanRusak'])->name('stok.rusak.putuskan');
 
-    // BARU: detail barang dan aksinya (rute literal di atas harus mendahului {barang})
+    // Detail barang dan aksinya (rute literal di atas harus mendahului {barang})
     Route::get('/stok/{barang}', [StokController::class, 'show'])->whereNumber('barang')->name('stok.show');
     Route::post('/stok/{barang}/sesuaikan', [StokController::class, 'sesuaikan'])->whereNumber('barang')->name('stok.sesuaikan');
     Route::post('/stok/{barang}/pindah', [StokController::class, 'pindahLokasi'])->whereNumber('barang')->name('stok.pindah');
     Route::patch('/stok/{barang}/pengaturan', [StokController::class, 'aturPengaturan'])->whereNumber('barang')->name('stok.pengaturan');
 
-    // BARU: kelola lokasi stok
+    // Kelola lokasi stok
     Route::get('/lokasi', [LokasiController::class, 'index'])->name('lokasi.index');
     Route::post('/lokasi', [LokasiController::class, 'store'])->name('lokasi.store');
     Route::put('/lokasi/{lokasi}', [LokasiController::class, 'update'])->name('lokasi.update');
     Route::delete('/lokasi/{lokasi}', [LokasiController::class, 'destroy'])->name('lokasi.destroy');
 
-     // BARU: Pesanan Kacamata (Owner dan Petugas sama-sama boleh)
+    // Pesanan Kacamata (Owner dan Petugas). Method selesaikan dan batalkan dibuat di Bagian 2.
     Route::get('/pesanan', [PesananController::class, 'index'])->name('pesanan.index');
     Route::post('/pesanan', [PesananController::class, 'store'])->name('pesanan.store');
-    Route::post('/pesanan/{pesanan}/ambil', [PesananController::class, 'ambil'])->name('pesanan.ambil');          // self-assignment
+    Route::post('/pesanan/{pesanan}/ambil', [PesananController::class, 'ambil'])->name('pesanan.ambil');
     Route::patch('/pesanan/{pesanan}/status', [PesananController::class, 'ubahStatus'])->name('pesanan.status');
+    Route::post('/pesanan/{pesanan}/selesai', [PesananController::class, 'selesaikan'])->name('pesanan.selesai');
+    Route::post('/pesanan/{pesanan}/batal', [PesananController::class, 'batalkan'])->name('pesanan.batal');
 
     // Page khusus Owner
     Route::middleware('role:owner')->group(function () {

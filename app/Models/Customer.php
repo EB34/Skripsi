@@ -9,9 +9,8 @@ class Customer extends Model
     protected $table = 'customer';
     protected $guarded = [];
 
-    // Nama kolom nomor WhatsApp di tabel customer.
-    // CEK di HeidiSQL, lalu ganti nilai ini kalau nama kolomnya berbeda.
-    public const KOLOM_WA = 'no_wa';
+    // Nama kolom nomor WhatsApp di tabel customer (sesuai yang dipakai halaman POS)
+    public const KOLOM_WA = 'no_whatsapp';
 
     public function getNomorWaAttribute(): ?string
     {
