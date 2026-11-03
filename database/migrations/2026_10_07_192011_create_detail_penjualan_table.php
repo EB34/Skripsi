@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('detail_penjualan', function (Blueprint $table) {
@@ -16,15 +13,13 @@ return new class extends Migration
             $table->foreignId('penjualan_id')->constrained('penjualan')->cascadeOnDelete();
             $table->foreignId('barang_id')->constrained('barang');
             $table->unsignedInteger('jumlah');
+            $table->unsignedInteger('jumlah_kembali')->default(0);   // BARU: frame yang dikembalikan ke stok saat pesanan batal
             $table->decimal('harga_jual', 12, 2);
             $table->decimal('hpp', 12, 2)->default(0);
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('detail_penjualan');

@@ -375,7 +375,7 @@
                         <div id="ringkas_nota" class="ringkas-nota mb-3 d-none"></div>
 
                         <div id="wrap_form_pesanan" class="d-none">
-                            @include('pesanan._form_pesanan', ['refraksiPerCustomer' => $refraksiPerCustomer])
+                            @include('pesanan.form_pesanan', ['refraksiPerCustomer' => $refraksiPerCustomer])
                         </div>
                     @endif
                 </div>

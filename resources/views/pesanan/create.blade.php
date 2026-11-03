@@ -233,7 +233,7 @@
             <div class="info-kecil" id="info-pesanan"></div>
 
             <div id="form-pesanan" class="d-none mt-2">
-                @include('pesanan._form_pesanan', ['refraksiPerCustomer' => $refraksiPerCustomer])
+                @include('pesanan.form_pesanan', ['refraksiPerCustomer' => $refraksiPerCustomer])
             </div>
         </div>
 
