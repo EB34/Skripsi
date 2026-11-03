@@ -12,6 +12,7 @@ use App\Http\Controllers\StokController;
 use App\Http\Controllers\LokasiController;
 use App\Http\Controllers\PesananController;
 use App\Http\Controllers\KerugianController;
+use App\Http\Controllers\ReturSupplierController;
 
 // Route::get('/', function () {
 //     return view('welcome');
@@ -69,5 +70,12 @@ Route::middleware('auth')->group(function () {
 
         // Kerugian operasional: nilai rupiah kerugian toko hanya untuk Owner
         Route::get('/kerugian', [KerugianController::class, 'index'])->name('kerugian.index');
+
+        // Modul Retur, tab Retur ke Supplier (validasi retur = wewenang Owner)
+        Route::get('/retur/supplier', [ReturSupplierController::class, 'index'])->name('retur.supplier');
+        Route::post('/retur/supplier/{retur}/kirim', [ReturSupplierController::class, 'kirim'])->name('retur.supplier.kirim');
+        Route::post('/retur/supplier/{retur}/selesai', [ReturSupplierController::class, 'selesai'])->name('retur.supplier.selesai');
+        Route::get('/retur/supplier/{retur}/nota', [ReturSupplierController::class, 'nota'])->name('retur.supplier.nota');
+        Route::get('/retur/supplier/{retur}/surat-jalan', [ReturSupplierController::class, 'suratJalan'])->name('retur.supplier.suratjalan');
     });
 });
