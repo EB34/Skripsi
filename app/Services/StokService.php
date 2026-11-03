@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Barang;
 use App\Models\BarangRusak;
 use App\Models\DetailPembelian;
+use App\Models\KerugianOperasional;
 use App\Models\Lokasi;
 use App\Models\MutasiStok;
 use App\Models\StokLokasi;
@@ -140,7 +141,8 @@ class StokService
     /**
      * Penyesuaian stok (opname): menyamakan stok sistem dengan hasil hitung fisik.
      *
-     * - Fisik lebih kecil dari sistem: stok dikurangi lewat keluarFifo() (batch tertua dulu).
+     * - Fisik lebih kecil dari sistem: stok dikurangi lewat keluarFifo() (batch tertua dulu),
+     *   dan nilainya dicatat sebagai kerugian operasional (selisih opname).
      * - Fisik lebih besar dari sistem: dibuat batch FIFO baru (bukan dari PO) dengan harga beli
      *   dari $hargaBeli, atau dari batch terbaru barang itu kalau $hargaBeli kosong.
      *
@@ -168,6 +170,18 @@ class StokService
 
             if ($selisih < 0) {
                 $hpp = $this->keluarFifo($barangId, -$selisih, 'penyesuaian', 'opname', null, $alasan, $userId);
+
+                // Barang fisik hilang/kurang = kerugian sebesar HPP-nya
+                $this->catatKerugian(
+                    KerugianOperasional::JENIS_SELISIH_OPNAME,
+                    $barangId,
+                    -$selisih,
+                    $hpp,
+                    'opname',
+                    null,
+                    $alasan,
+                    $userId
+                );
 
                 return ['arah' => 'kurang', 'jumlah' => -$selisih, 'nilai' => $hpp];
             }
@@ -227,6 +241,7 @@ class StokService
     /**
      * Keputusan tindak lanjut barang rusak: 'retur_supplier' atau 'write_off'.
      * Mengurangi stok_rusak. Stok layak jual tidak berubah, jadi mutasi dicatat dengan jumlah 0.
+     * Write off dicatat sebagai kerugian operasional senilai nilai_hpp laporan.
      */
     public function putuskanRusak(int $laporanId, string $keputusan, ?int $userId = null): void
     {
@@ -266,6 +281,20 @@ class StokService
                 "{$label} {$laporan->jumlah} pcs ({$laporan->alasan})",
                 $userId
             );
+
+            // Hanya write off yang rugi. Retur ke supplier belum tentu rugi, jadi tidak dicatat di sini.
+            if ($keputusan === 'write_off') {
+                $this->catatKerugian(
+                    KerugianOperasional::JENIS_WRITE_OFF_RUSAK,
+                    $barang->id,
+                    (int) $laporan->jumlah,
+                    (float) $laporan->nilai_hpp,
+                    'barang_rusak',
+                    $laporan->id,
+                    $laporan->alasan,
+                    $userId
+                );
+            }
         });
     }
 
@@ -394,6 +423,34 @@ class StokService
             'jenis_kejadian' => $jenis,
             'jumlah'         => $jumlah,                  // negatif jika stok berkurang
             'saldo_setelah'  => $barang->stok_tersedia,
+            'tanggal'        => now(),
+            'referensi_tipe' => $refTipe,
+            'referensi_id'   => $refId,
+            'keterangan'     => $keterangan,
+            'user_id'        => $userId ?? Auth::id(),
+        ]);
+    }
+
+    /**
+     * Satu-satunya tempat yang menulis ke kerugian_operasional.
+     * Dipanggil dari dalam transaksi pemanggilnya, jadi ikut batal kalau transaksi gagal.
+     * Nilai selalu positif (besar kerugian), mengikuti HPP FIFO.
+     */
+    protected function catatKerugian(
+        string $jenis,
+        ?int $barangId,
+        int $jumlah,
+        float $nilai,
+        ?string $refTipe = null,
+        ?int $refId = null,
+        ?string $keterangan = null,
+        ?int $userId = null
+    ): void {
+        KerugianOperasional::create([
+            'jenis'          => $jenis,
+            'barang_id'      => $barangId,
+            'jumlah'         => $jumlah,
+            'nilai'          => $nilai,
             'tanggal'        => now(),
             'referensi_tipe' => $refTipe,
             'referensi_id'   => $refId,

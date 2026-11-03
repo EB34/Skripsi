@@ -11,6 +11,7 @@ use App\Http\Controllers\RefraksiController;
 use App\Http\Controllers\StokController;
 use App\Http\Controllers\LokasiController;
 use App\Http\Controllers\PesananController;
+use App\Http\Controllers\KerugianController;
 
 // Route::get('/', function () {
 //     return view('welcome');
@@ -65,5 +66,8 @@ Route::middleware('auth')->group(function () {
     // Page khusus Owner
     Route::middleware('role:owner')->group(function () {
         Route::get('/laporan', fn () => 'Halaman laporan (khusus Owner)');
+
+        // Kerugian operasional: nilai rupiah kerugian toko hanya untuk Owner
+        Route::get('/kerugian', [KerugianController::class, 'index'])->name('kerugian.index');
     });
 });

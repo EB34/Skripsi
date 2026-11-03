@@ -246,7 +246,12 @@
 
     {{-- ===== Sidebar ===== --}}
     @php
+        /** @var \App\Models\User $user */
+        $user    = auth()->user();
+        $isOwner = $user->isOwner();
+
         // [label, ikon, nama route (null = belum dibuat), pola route untuk menandai menu aktif]
+        // Entri "Kerugian Operasional" hanya dimasukkan untuk Owner (nilai kerugian = informasi keuangan).
         $menu = [
             ['Dashboard',           'bi-grid-1x2',        'dashboard',      'dashboard'],
             ['Data Barang',         'bi-box-seam',        'barang.index',   'barang.*'],
@@ -257,6 +262,7 @@
             ['Data Pelanggan',      'bi-people',          'customer.index', 'customer.*'],
             ['Data Supplier',       'bi-shop',            'supplier.index',   'supplier.*'],
             ['Modul Retur',         'bi-arrow-left-right', null,            null],
+            ...($isOwner ? [['Kerugian Operasional', 'bi-exclamation-diamond', 'kerugian.index', 'kerugian.*']] : []),
             ['Laporan Laba Rugi',   'bi-graph-up',        null,             null],
             ['Notifikasi Whatsapp', 'bi-whatsapp',        null,             null],
         ];
