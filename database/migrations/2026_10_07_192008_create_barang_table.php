@@ -16,6 +16,9 @@ return new class extends Migration
             $table->string('kode_model')->unique();
             $table->enum('jenis', ['frame', 'lensa', 'softlens']);
             $table->string('merk');
+            // Ukuran lensa (hanya terisi untuk jenis lensa). Satu kode model lensa = satu ukuran.
+            $table->decimal('sph', 4, 2)->nullable();
+            $table->decimal('cyl', 4, 2)->nullable();
             $table->decimal('harga_jual', 12, 2)->default(0);
             $table->unsignedInteger('stok_tersedia')->default(0);
             $table->unsignedInteger('stok_rusak')->default(0);

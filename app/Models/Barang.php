@@ -66,4 +66,19 @@ class Barang extends Model
             default    => ucfirst((string) $this->jenis),
         };
     }
+
+    /**
+     * Ukuran lensa sebagai teks, misalnya "SPH -2.25 / CYL -0.50".
+     * Null untuk barang selain lensa atau lensa yang SPH-nya belum diisi.
+     */
+    public function getUkuranLabelAttribute(): ?string
+    {
+        if ($this->jenis !== 'lensa' || $this->sph === null) {
+            return null;
+        }
+
+        $f = fn ($v) => ((float) $v > 0 ? '+' : '') . number_format((float) $v, 2, '.', '');
+
+        return 'SPH ' . $f($this->sph) . ' / CYL ' . $f($this->cyl ?? 0);
+    }
 }

@@ -5,6 +5,7 @@
 @push('styles')
 <style>
     button.btn-abu { cursor: pointer; }
+    .ukuran-lensa { font-size: .72rem; font-weight: 600; color: #1f5f87; }
 </style>
 @endpush
 
@@ -18,6 +19,8 @@
         'jenis'      => old('jenis'),
         'merk'       => old('merk'),
         'harga_jual' => old('harga_jual'),
+        'sph'        => old('sph'),
+        'cyl'        => old('cyl'),
     ];
 @endphp
 
@@ -32,7 +35,7 @@
 <form method="GET" action="{{ route('barang.index') }}" class="panel-abu d-flex align-items-center gap-3">
     <div class="search-box">
         <i class="bi bi-search"></i>
-        <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari kode model atau merk...">
+        <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari kode model, merk, atau ukuran SPH...">
     </div>
 
     @if (request('jenis'))
@@ -68,6 +71,9 @@
                 <div class="barang-nama">{{ $b->merk }}</div>
                 <div class="barang-info">
                     Jenis: {{ ucfirst($b->jenis) }}<br>
+                    @if ($b->jenis === 'lensa')
+                        <span class="ukuran-lensa">{{ $b->ukuran_label ?? 'Ukuran belum diisi' }}</span><br>
+                    @endif
                     Stok rusak: {{ $b->stok_rusak }}
                 </div>
 
@@ -82,7 +88,9 @@
                                 data-kode="{{ $b->kode_model }}"
                                 data-jenis="{{ $b->jenis }}"
                                 data-merk="{{ $b->merk }}"
-                                data-harga="{{ (int) $b->harga_jual }}">
+                                data-harga="{{ (int) $b->harga_jual }}"
+                                data-sph="{{ $b->sph }}"
+                                data-cyl="{{ $b->cyl }}">
                             <i class="bi bi-pencil-square"></i>
                         </button>
                         <form action="{{ route('barang.destroy', $b) }}" method="POST"
@@ -152,6 +160,21 @@
                         <input type="text" name="merk" class="form-control" required>
                     </div>
 
+                    {{-- Ukuran lensa: hanya tampil kalau jenis = Lensa --}}
+                    <div class="row g-3 mb-3 d-none" id="blok-ukuran">
+                        <div class="col-6">
+                            <label class="form-label">SPH <span class="text-danger">*</span></label>
+                            <input type="number" name="sph" step="0.25" min="-20" max="20" class="form-control"
+                                   placeholder="Contoh: -2.25">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">CYL</label>
+                            <input type="number" name="cyl" step="0.25" min="-10" max="10" class="form-control"
+                                   placeholder="Kosong = 0">
+                        </div>
+                        <div class="col-12 form-text mt-1">Satu kode model lensa mewakili satu ukuran. Kelipatan 0,25.</div>
+                    </div>
+
                     <div class="mb-1">
                         <label class="form-label">Harga Jual (Rp)</label>
                         <input type="number" name="harga_jual" min="0" step="any" class="form-control" required>
@@ -183,6 +206,16 @@
     const elForm   = document.getElementById('field-form');
     const elId     = document.getElementById('field-id');
     const tombolSimpan = document.getElementById('tombol-simpan');
+    const blokUkuran   = document.getElementById('blok-ukuran');
+
+    // Kolom SPH/CYL hanya muncul untuk lensa; SPH wajib hanya saat itu
+    function aturUkuran() {
+        const lensa = form.elements['jenis'].value === 'lensa';
+        blokUkuran.classList.toggle('d-none', !lensa);
+        form.elements['sph'].required = lensa;
+    }
+
+    form.elements['jenis'].addEventListener('change', aturUkuran);
 
     function bukaForm(mode, data = {}) {
         const ubah = mode === 'ubah';
@@ -198,7 +231,10 @@
         form.elements['jenis'].value      = data.jenis ?? '';
         form.elements['merk'].value       = data.merk ?? '';
         form.elements['harga_jual'].value = data.harga_jual ?? '';
+        form.elements['sph'].value        = data.sph ?? '';
+        form.elements['cyl'].value        = data.cyl ?? '';
 
+        aturUkuran();
         modal.show();
     }
 
@@ -225,6 +261,8 @@
             jenis: tombol.dataset.jenis,
             merk: tombol.dataset.merk,
             harga_jual: tombol.dataset.harga,
+            sph: tombol.dataset.sph,
+            cyl: tombol.dataset.cyl,
         });
     });
 
