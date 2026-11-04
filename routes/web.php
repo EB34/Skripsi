@@ -13,6 +13,8 @@ use App\Http\Controllers\LokasiController;
 use App\Http\Controllers\PesananController;
 use App\Http\Controllers\KerugianController;
 use App\Http\Controllers\ReturSupplierController;
+use App\Http\Controllers\ReturCustomerController;
+use App\Http\Controllers\KesalahanTokoController;
 
 // Route::get('/', function () {
 //     return view('welcome');
@@ -64,6 +66,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/pesanan/{pesanan}/selesai', [PesananController::class, 'selesaikan'])->name('pesanan.selesai');
     Route::post('/pesanan/{pesanan}/batal', [PesananController::class, 'batalkan'])->name('pesanan.batal');
 
+    // Modul Retur: tab untuk Owner dan Petugas (Petugas mencatat keluhan dan kejadian)
+    Route::get('/retur/customer', [ReturCustomerController::class, 'index'])->name('retur.customer');
+    Route::post('/retur/customer', [ReturCustomerController::class, 'store'])->name('retur.customer.store');
+    Route::get('/retur/kesalahan-toko', [KesalahanTokoController::class, 'index'])->name('retur.kesalahan');
+    Route::post('/retur/kesalahan-toko', [KesalahanTokoController::class, 'store'])->name('retur.kesalahan.store');
+
     // Page khusus Owner
     Route::middleware('role:owner')->group(function () {
         Route::get('/laporan', fn () => 'Halaman laporan (khusus Owner)');
@@ -77,5 +85,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/retur/supplier/{retur}/selesai', [ReturSupplierController::class, 'selesai'])->name('retur.supplier.selesai');
         Route::get('/retur/supplier/{retur}/nota', [ReturSupplierController::class, 'nota'])->name('retur.supplier.nota');
         Route::get('/retur/supplier/{retur}/surat-jalan', [ReturSupplierController::class, 'suratJalan'])->name('retur.supplier.suratjalan');
+
+        // Memproses retur customer (konfirmasi supplier + tindak lanjut) = wewenang Owner
+        Route::post('/retur/customer/{retur}/proses', [ReturCustomerController::class, 'proses'])->name('retur.customer.proses');
     });
 });

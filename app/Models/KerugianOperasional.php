@@ -11,12 +11,14 @@ class KerugianOperasional extends Model
 
     public const JENIS_WRITE_OFF_RUSAK = 'write_off_rusak';
     public const JENIS_SELISIH_OPNAME  = 'selisih_opname';
-    public const JENIS_KESALAHAN_TOKO  = 'kesalahan_toko'; // penulisnya baru dibuat di Modul Retur
+    public const JENIS_KESALAHAN_TOKO  = 'kesalahan_toko';
+    public const JENIS_RETUR_CUSTOMER  = 'retur_customer'; // frame pengganti dari stok toko
 
     public const JENIS = [
         self::JENIS_WRITE_OFF_RUSAK => 'Write Off Barang Rusak',
         self::JENIS_SELISIH_OPNAME  => 'Selisih Opname',
         self::JENIS_KESALAHAN_TOKO  => 'Kesalahan Pengerjaan Toko',
+        self::JENIS_RETUR_CUSTOMER  => 'Penggantian Frame Retur Customer',
     ];
 
     protected $casts = [

@@ -251,8 +251,8 @@
         $isOwner = $user->isOwner();
 
         // [label, ikon, nama route (null = belum dibuat), pola route untuk menandai menu aktif]
-        // Modul Retur dan Kerugian Operasional hanya dimasukkan untuk Owner.
-        // Modul Retur akan dibuka untuk Petugas setelah tab Retur dari Customer dibuat.
+        // Modul Retur: Owner masuk lewat tab Retur ke Supplier, Petugas lewat tab Retur dari Customer.
+        // Kerugian Operasional hanya untuk Owner.
         $menu = [
             ['Dashboard',           'bi-grid-1x2',        'dashboard',      'dashboard'],
             ['Data Barang',         'bi-box-seam',        'barang.index',   'barang.*'],
@@ -262,10 +262,8 @@
             ['Pesanan Kacamata',    'bi-eyeglasses',      'pesanan.index',  'pesanan.*'],
             ['Data Pelanggan',      'bi-people',          'customer.index', 'customer.*'],
             ['Data Supplier',       'bi-shop',            'supplier.index',   'supplier.*'],
-            ...($isOwner ? [
-                ['Modul Retur',          'bi-arrow-left-right',    'retur.supplier', 'retur.*'],
-                ['Kerugian Operasional', 'bi-exclamation-diamond', 'kerugian.index', 'kerugian.*'],
-            ] : []),
+            ['Modul Retur',         'bi-arrow-left-right', $isOwner ? 'retur.supplier' : 'retur.customer', 'retur.*'],
+            ...($isOwner ? [['Kerugian Operasional', 'bi-exclamation-diamond', 'kerugian.index', 'kerugian.*']] : []),
             ['Laporan Laba Rugi',   'bi-graph-up',        null,             null],
             ['Notifikasi Whatsapp', 'bi-whatsapp',        null,             null],
         ];

@@ -6,25 +6,22 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('penggantian_kesalahan_toko', function (Blueprint $table) {
             $table->id();
             $table->foreignId('pesanan_id')->constrained('pesanan_kacamata');
-            $table->string('jenis_kesalahan');
-            $table->foreignId('lensa_writeoff_id')->constrained('barang');
-            $table->foreignId('lensa_pengganti_id')->constrained('barang');
-            $table->decimal('nilai_kerugian', 12, 2)->default(0);
+            $table->string('jenis_kesalahan', 40);
+            $table->foreignId('lensa_writeoff_id')->constrained('barang');   // lensa lama yang salah (di-write off)
+            $table->foreignId('lensa_pengganti_id')->constrained('barang');  // lensa baru dari stok
+            $table->unsignedInteger('jumlah')->default(1);                   // jumlah biji yang diganti
+            $table->decimal('nilai_kerugian', 12, 2)->default(0);            // HPP lensa pengganti (FIFO)
+            $table->text('keterangan')->nullable();
+            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('penggantian_kesalahan_toko');
