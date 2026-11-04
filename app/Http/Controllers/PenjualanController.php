@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Barang;
 use App\Models\Customer;
 use App\Models\Penjualan;
-use App\Services\PesananService;
 use App\Services\StokService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -28,32 +27,28 @@ class PenjualanController extends Controller
 
     public function create()
     {
-        $customer = Customer::with('refraksi')->orderBy('nama')->get();
-
         return view('penjualan.create', [
-            'barang'              => Barang::orderBy('jenis')->orderBy('kode_model')->get(),
-            'customer'            => $customer,
-            'refraksiPerCustomer' => PesananService::refraksiPerCustomer($customer),
+            'barang'   => Barang::orderBy('jenis')->orderBy('kode_model')->get(),
+            'customer' => Customer::orderBy('nama')->get(),
         ]);
     }
 
-    public function store(Request $request, StokService $stok, PesananService $pesananService)
+    public function store(Request $request, StokService $stok)
     {
-        $data = $request->validate(array_merge([
-            'customer_id'        => ['required', 'exists:customer,id'],
-            'metode_pembayaran'  => ['required', Rule::in(['tunai', 'qris', 'transfer', 'kartu'])],
-            'diskon'             => ['nullable', 'numeric', 'min:0'],
-            'uang_diterima'      => ['nullable', 'numeric', 'min:0'],
-            'bayar_dp'           => ['nullable', 'boolean'],
-            'buat_pesanan'       => ['nullable', 'boolean'],
-            'items'              => ['required', 'array', 'min:1'],
-            'items.*.barang_id'  => ['required', 'exists:barang,id'],
-            'items.*.jumlah'     => ['required', 'integer', 'min:1'],
-        ], PesananService::aturan()), [
+        $data = $request->validate([
+            'customer_id'       => ['required', 'exists:customer,id'],
+            'metode_pembayaran' => ['required', Rule::in(['tunai', 'qris', 'transfer', 'kartu'])],
+            'diskon'            => ['nullable', 'numeric', 'min:0'],
+            'uang_diterima'     => ['nullable', 'numeric', 'min:0'],
+            'bayar_dp'          => ['nullable', 'boolean'],
+            'items'             => ['required', 'array', 'min:1'],
+            'items.*.barang_id' => ['required', 'exists:barang,id'],
+            'items.*.jumlah'    => ['required', 'integer', 'min:1'],
+        ], [
             'customer_id.required' => 'Customer belum dipilih.',
-            'items.required' => 'Keranjang masih kosong.',
-            'items.min'      => 'Keranjang masih kosong.',
-        ], PesananService::namaAtribut());
+            'items.required'       => 'Keranjang masih kosong.',
+            'items.min'            => 'Keranjang masih kosong.',
+        ]);
 
         // Gabungkan baris barang yang sama menjadi satu jumlah
         $jumlahPerBarang = [];
@@ -67,8 +62,7 @@ class PenjualanController extends Controller
 
         $subtotal      = 0;
         $adaFrame      = false;
-        $barisLensa    = 0;
-        $qtyLensa      = 0;
+        $adaLensa      = false;
         $subtotalLensa = 0;
 
         foreach ($jumlahPerBarang as $id => $qty) {
@@ -80,15 +74,9 @@ class PenjualanController extends Controller
                 $adaFrame = true;
             }
             if ($jenis === 'lensa') {
-                $barisLensa++;
-                $qtyLensa += $qty;
+                $adaLensa = true;
                 $subtotalLensa += $nilai;
             }
-        }
-
-        // Aturan lensa: satu nota satu jenis lensa, dihitung per biji (1 = satu mata, 2 = sepasang)
-        if ($barisLensa > 1 || $qtyLensa > 2) {
-            return back()->withInput()->with('error', 'Satu nota hanya boleh berisi satu jenis lensa dengan jumlah 1 atau 2 biji.');
         }
 
         $diskon = (float) ($data['diskon'] ?? 0);
@@ -97,22 +85,21 @@ class PenjualanController extends Controller
         }
         $total = $subtotal - $diskon;
 
-        $bayarDp     = ! empty($data['bayar_dp']);
-        $buatPesanan = ! empty($data['buat_pesanan']);
+        $bayarDp = ! empty($data['bayar_dp']);
 
-        // DP: hanya untuk nota berisi frame + lensa. Nominal tetap = harga lensa (diskon tidak mengubahnya).
+        // DP: hanya untuk nota berisi frame + lensa. Nominal tetap = harga semua lensa di nota (diskon tidak mengubahnya).
         if ($bayarDp) {
-            if (! $adaFrame || $barisLensa < 1) {
+            if (! $adaFrame || ! $adaLensa) {
                 return back()->withInput()->with('error', 'DP hanya untuk transaksi yang berisi frame dan lensa.');
             }
             if ($total <= $subtotalLensa) {
                 return back()->withInput()->with('error', 'DP tidak tersedia karena total bayar tidak lebih besar dari harga lensa. Silakan bayar penuh.');
             }
-            $buatPesanan = true;   // transaksi DP selalu disertai pesanan pengerjaan
         }
 
         $dibayarSekarang = $bayarDp ? (float) $subtotalLensa : (float) $total;
 
+        // Uang diterima hanya relevan untuk tunai; metode lain (QRIS, transfer, kartu) dibayar pas
         $uang = null;
         if ($data['metode_pembayaran'] === 'tunai') {
             $uang = (float) ($data['uang_diterima'] ?? 0);
@@ -123,14 +110,13 @@ class PenjualanController extends Controller
             }
         }
 
-        // Nota berisi lensa atau berpesanan tetap "berjalan" sampai pesanannya selesai/batal
+        // Nota berisi lensa atau DP tetap "berjalan" sampai pesanannya selesai/batal
         // (atau ditutup manual di halaman nota). Selain itu langsung selesai.
-        $status = ($barisLensa > 0 || $buatPesanan) ? 'berjalan' : 'selesai';
+        $status = ($adaLensa || $bayarDp) ? 'berjalan' : 'selesai';
 
         try {
-            [$penjualan, $pesanan] = DB::transaction(function () use (
-                $data, $jumlahPerBarang, $barang, $diskon, $total, $uang, $dibayarSekarang,
-                $bayarDp, $buatPesanan, $status, $stok, $pesananService
+            $penjualan = DB::transaction(function () use (
+                $data, $jumlahPerBarang, $barang, $diskon, $total, $uang, $dibayarSekarang, $bayarDp, $status, $stok
             ) {
                 // Nomor nota: INV-ddmmyyyy-urutan di hari itu
                 $urut  = Penjualan::whereDate('tanggal', now()->toDateString())->count() + 1;
@@ -169,20 +155,17 @@ class PenjualanController extends Controller
                     'user_id'       => Auth::id(),
                 ]);
 
-                $pesanan = $buatPesanan
-                    ? $pesananService->buatDariNota($p, $data['pesanan'] ?? [], Auth::id())
-                    : null;
-
-                return [$p, $pesanan];
+                return $p;
             });
         } catch (RuntimeException $e) {
-            // Misalnya stok tidak cukup atau ukuran pesanan belum sesuai: semua perubahan otomatis dibatalkan
+            // Misalnya stok tidak cukup: semua perubahan otomatis dibatalkan
             return back()->withInput()->with('error', $e->getMessage());
         }
 
         $pesan = "Transaksi {$penjualan->nomor_nota} berhasil disimpan.";
-        if ($pesanan) {
-            $pesan .= " Pesanan {$pesanan->nomor_pesanan} dicatat.";
+        if ($bayarDp) {
+            $pesan .= ' DP Rp ' . number_format($dibayarSekarang, 0, ',', '.')
+                . ' diterima. Buat pesanannya lewat menu Pesanan Kacamata > Buat Pesanan Baru.';
         }
 
         return redirect()->route('penjualan.show', $penjualan)->with('success', $pesan);

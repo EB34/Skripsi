@@ -51,7 +51,7 @@
 
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="page-title">Kerugian Operasional</h1>
-        <span class="krg-owner"><i class="bi bi-lock"></i> Khusus Owner</span>
+        <!-- <span class="krg-owner"><i class="bi bi-lock"></i> Khusus Owner</span> -->
     </div>
 
     @if ($errors->any())

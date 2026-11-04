@@ -33,6 +33,7 @@
     .pos-card .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
     .pos-card .nama { font-weight: 700; font-size: .88rem; }
     .pos-card .info { font-size: .68rem; color: #555; margin-bottom: 8px; }
+    .pos-card .ukuran { font-size: .7rem; font-weight: 600; color: #1f5f87; }
     .pos-card .bawah { border-top: 1px solid #d0d0d0; padding-top: 6px; display: flex; justify-content: space-between; align-items: center; }
 
     /* Panel keranjang */
@@ -61,8 +62,21 @@
     }
     .cart-info { flex: 1; min-width: 0; }
     .cart-nama { font-size: .8rem; font-weight: 600; }
+    .cart-ukuran { font-size: .68rem; font-weight: 600; color: #1f5f87; }
     .cart-harga { font-size: .7rem; color: #555; }
     .cart-qty { display: flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 600; }
+
+    /* Kotak DP */
+    .box-dp {
+        background: #fff3b0;
+        border: 1px solid #d9a400;
+        border-radius: 10px;
+        padding: 10px 12px;
+        margin-bottom: 14px;
+        font-size: .78rem;
+    }
+    .box-dp .judul-dp { font-weight: 700; }
+    .box-dp small { display: block; color: #555; margin-top: 2px; }
 
     /* Pencarian customer (kolom ketik + daftar pilihan) */
     .cust-combo { position: relative; }
@@ -105,6 +119,7 @@
     .box-tunai { background: #efefef; border-radius: 10px; padding: 12px; margin-bottom: 14px; }
     .baris-total { display: flex; justify-content: space-between; font-size: .8rem; margin-bottom: 6px; }
     .baris-total.besar { font-size: 1rem; font-weight: 800; margin: 10px 0 12px; }
+    .baris-total.merah { color: #a31515; font-weight: 600; }
     .btn-bayar {
         width: 100%; border: 0; border-radius: 8px;
         background: var(--kuning); color: #000;
@@ -139,7 +154,7 @@
         <div class="panel-abu">
             <div class="search-box mb-2">
                 <i class="bi bi-search"></i>
-                <input type="text" id="cari" placeholder="Cari nama barang...">
+                <input type="text" id="cari" placeholder="Cari nama, kode, atau ukuran SPH barang...">
             </div>
             <div class="d-flex gap-2 flex-wrap" id="chips">
                 <button type="button" class="chip active" data-jenis="">Semua Kategori</button>
@@ -160,6 +175,7 @@
                      data-kode="{{ $b->kode_model }}"
                      data-merk="{{ $b->merk }}"
                      data-jenis="{{ $b->jenis }}"
+                     data-ukuran="{{ $b->ukuran_label }}"
                      data-harga="{{ (int) $b->harga_jual }}"
                      data-stok="{{ $b->stok_tersedia }}">
                     <div class="top">
@@ -167,7 +183,12 @@
                         <span class="badge-stok {{ $kelasStok }}">Stok: {{ $b->stok_tersedia }}</span>
                     </div>
                     <div class="nama">{{ $b->merk }}</div>
-                    <div class="info">{{ ucfirst($b->jenis) }}</div>
+                    <div class="info">
+                        {{ ucfirst($b->jenis) }}
+                        @if ($b->ukuran_label)
+                            <br><span class="ukuran">{{ $b->ukuran_label }}</span>
+                        @endif
+                    </div>
                     <div class="bawah">
                         <span class="harga">Rp {{ number_format($b->harga_jual, 0, ',', '.') }}</span>
                     </div>
@@ -214,6 +235,15 @@
             <div id="daftar-keranjang"></div>
         </div>
 
+        {{-- Opsi DP: muncul otomatis kalau keranjang berisi frame + lensa dan total setelah diskon > harga lensa --}}
+        <div class="box-dp d-none" id="box-dp">
+            <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" name="bayar_dp" value="1" id="cek-dp" @checked(old('bayar_dp'))>
+                <label class="form-check-label judul-dp" for="cek-dp">Bayar DP saja</label>
+            </div>
+            <small id="info-dp"></small>
+        </div>
+
         <div class="fw-semibold" style="font-size:.8rem">Pilih Metode Pembayaran:</div>
         @php
             $daftarMetode = [
@@ -250,6 +280,10 @@
         </div>
         <div class="baris-total besar"><span>Total Bayar:</span><span id="total">Rp 0</span></div>
 
+        {{-- Hanya tampil kalau DP dicentang --}}
+        <div class="baris-total d-none" id="baris-dp"><span>Dibayar sekarang (DP)</span><strong id="dp-nominal">Rp 0</strong></div>
+        <div class="baris-total merah d-none" id="baris-sisa"><span>Sisa dilunasi saat pengambilan</span><span id="dp-sisa">Rp 0</span></div>
+
         <button type="submit" id="btn-bayar" class="btn-bayar" disabled>Bayar</button>
     </form>
 </div>
@@ -271,9 +305,15 @@
     const boxTunai   = document.getElementById('box-tunai');
     const btnBayar   = document.getElementById('btn-bayar');
     const formPos    = document.getElementById('form-pos');
+    const boxDp      = document.getElementById('box-dp');
+    const cekDp      = document.getElementById('cek-dp');
+    const infoDp     = document.getElementById('info-dp');
+    const barisDp    = document.getElementById('baris-dp');
+    const barisSisa  = document.getElementById('baris-sisa');
+    const elDpNom    = document.getElementById('dp-nominal');
+    const elDpSisa   = document.getElementById('dp-sisa');
 
-    const keranjang = {};          // id barang -> {id, kode, merk, harga, stok, qty}
-    let subtotalSekarang = 0;
+    const keranjang = {};          // id barang -> {id, kode, merk, jenis, ukuran, harga, stok, qty}
 
     function rp(angka) {
         return 'Rp ' + Math.round(angka).toLocaleString('id-ID');
@@ -283,25 +323,53 @@
         return document.querySelector('input[name="metode_pembayaran"]:checked').value;
     }
 
-    function hitung(subtotal) {
-        if (subtotal !== undefined) subtotalSekarang = subtotal;
+    // Ringkasan isi keranjang: subtotal, apakah ada frame, dan total harga semua lensa
+    function ringkas() {
+        let subtotal = 0, subLensa = 0, adaFrame = false;
+        Object.values(keranjang).forEach(it => {
+            subtotal += it.harga * it.qty;
+            if (it.jenis === 'frame') adaFrame = true;
+            if (it.jenis === 'lensa') subLensa += it.harga * it.qty;
+        });
+        return { subtotal: subtotal, subLensa: subLensa, adaFrame: adaFrame };
+    }
 
-        const diskon = Math.min(parseFloat(elDiskon.value) || 0, subtotalSekarang);
-        const total  = subtotalSekarang - diskon;
+    function hitung() {
+        const r      = ringkas();
+        const diskon = Math.min(parseFloat(elDiskon.value) || 0, r.subtotal);
+        const total  = r.subtotal - diskon;
         const tunai  = metodeAktif() === 'tunai';
         const uang   = parseFloat(elUang.value) || 0;
+
+        // DP hanya untuk frame + lensa, dan hanya kalau total setelah diskon masih lebih besar dari harga lensa
+        const dpBisa = r.adaFrame && r.subLensa > 0 && total > r.subLensa;
+        boxDp.classList.toggle('d-none', !dpBisa);
+        if (!dpBisa) cekDp.checked = false;
+
+        const dp            = dpBisa && cekDp.checked;
+        const bayarSekarang = dp ? r.subLensa : total;
+
+        if (dpBisa) {
+            infoDp.textContent = 'Bayar ' + rp(r.subLensa) + ' (sama dengan harga lensa) sekarang, sisanya dilunasi saat kacamata diambil. Berlaku untuk semua metode pembayaran.';
+        }
+
+        barisDp.classList.toggle('d-none', !dp);
+        barisSisa.classList.toggle('d-none', !dp);
+        elDpNom.textContent  = rp(r.subLensa);
+        elDpSisa.textContent = rp(total - r.subLensa);
 
         // Customer wajib dipilih sebelum transaksi boleh dibayar
         const adaCustomer = document.getElementById('cust-id').value !== '';
 
-        elSubtotal.textContent = rp(subtotalSekarang);
+        elSubtotal.textContent = rp(r.subtotal);
         elTotal.textContent    = rp(total);
-        elKembali.textContent  = rp(Math.max(uang - total, 0));
+        elKembali.textContent  = rp(Math.max(uang - bayarSekarang, 0));
+        btnBayar.textContent   = dp ? 'Bayar DP' : 'Bayar';
 
         boxTunai.style.display = tunai ? 'block' : 'none';
         elUang.disabled        = !tunai;
 
-        btnBayar.disabled = !(adaCustomer && subtotalSekarang > 0 && (!tunai || uang >= total));
+        btnBayar.disabled = !(adaCustomer && r.subtotal > 0 && (!tunai || uang >= bayarSekarang));
     }
 
     function render() {
@@ -309,16 +377,15 @@
         const ids = Object.keys(keranjang);
         kosong.style.display = ids.length ? 'none' : 'block';
 
-        let subtotal = 0;
         ids.forEach((id, i) => {
             const it = keranjang[id];
-            subtotal += it.harga * it.qty;
 
             const row = document.createElement('div');
             row.className = 'cart-row';
             row.innerHTML = `
                 <div class="cart-info">
                     <div class="cart-nama"></div>
+                    <div class="cart-ukuran"></div>
                     <div class="cart-harga"></div>
                 </div>
                 <div class="cart-qty">
@@ -330,9 +397,10 @@
                 <input type="hidden" name="items[${i}][barang_id]" value="${it.id}">
                 <input type="hidden" name="items[${i}][jumlah]" value="${it.qty}">
             `;
-            row.querySelector('.cart-nama').textContent  = it.merk + ' (' + it.kode + ')';
-            row.querySelector('.cart-harga').textContent = rp(it.harga) + ' x ' + it.qty + ' = ' + rp(it.harga * it.qty);
-            row.querySelector('.jml').textContent        = it.qty;
+            row.querySelector('.cart-nama').textContent   = it.merk + ' (' + it.kode + ')';
+            row.querySelector('.cart-ukuran').textContent = it.ukuran;
+            row.querySelector('.cart-harga').textContent  = rp(it.harga) + ' x ' + it.qty + ' = ' + rp(it.harga * it.qty);
+            row.querySelector('.jml').textContent         = it.qty;
 
             row.querySelector('.kurang').onclick = () => {
                 it.qty--;
@@ -351,7 +419,7 @@
             daftar.appendChild(row);
         });
 
-        hitung(subtotal);
+        hitung();
     }
 
     function tambahKeKeranjang(kartu, jumlah = 1) {
@@ -364,6 +432,8 @@
                 id: id,
                 kode: kartu.dataset.kode,
                 merk: kartu.dataset.merk,
+                jenis: kartu.dataset.jenis,
+                ukuran: kartu.dataset.ukuran || '',
                 harga: parseFloat(kartu.dataset.harga),
                 stok: stok,
                 qty: 0,
@@ -387,8 +457,8 @@
         const kata = elCari.value.trim().toLowerCase();
         grid.querySelectorAll('.pos-card').forEach(k => {
             const cocokJenis = !jenisAktif || k.dataset.jenis === jenisAktif;
-            const cocokKata  = (k.dataset.kode + ' ' + k.dataset.merk).toLowerCase().includes(kata);
-            k.style.display = (cocokJenis && cocokKata) ? '' : 'none';
+            const teks = (k.dataset.kode + ' ' + k.dataset.merk + ' ' + (k.dataset.ukuran || '')).toLowerCase();
+            k.style.display = (cocokJenis && teks.includes(kata)) ? '' : 'none';
         });
     }
 
@@ -405,6 +475,7 @@
     // Pembayaran
     elDiskon.addEventListener('input', () => hitung());
     elUang.addEventListener('input', () => hitung());
+    cekDp.addEventListener('change', () => hitung());
     document.querySelectorAll('input[name="metode_pembayaran"]').forEach(r =>
         r.addEventListener('change', () => hitung())
     );
