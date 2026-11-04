@@ -50,9 +50,9 @@
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="page-title">Log Notifikasi &amp; Integrasi WA</h1>
-    <button type="button" class="btn-abu" disabled title="Template pesan belum dibuat">
+    <a href="{{ route('notifikasi.template') }}" class="btn-abu">
         <i class="bi bi-pencil-square"></i> Edit Template Chat
-    </button>
+    </a>
 </div>
 
 <div class="banner-info mb-3">

@@ -16,6 +16,7 @@ use App\Http\Controllers\ReturSupplierController;
 use App\Http\Controllers\ReturCustomerController;
 use App\Http\Controllers\KesalahanTokoController;
 use App\Http\Controllers\LogNotifikasiController;
+use App\Http\Controllers\TemplateNotifikasiController;
 
 // Route::get('/', function () {
 //     return view('welcome');
@@ -51,7 +52,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/stok/{barang}', [StokController::class, 'show'])->whereNumber('barang')->name('stok.show');
     Route::post('/stok/{barang}/sesuaikan', [StokController::class, 'sesuaikan'])->whereNumber('barang')->name('stok.sesuaikan');
     Route::post('/stok/{barang}/pindah', [StokController::class, 'pindahLokasi'])->whereNumber('barang')->name('stok.pindah');
-    Route::patch('/stok/{barang}/pengaturan', [StokController::class, 'aturPengaturan'])->whereNumber('barang')->name('stok.pengaturan');
+    // (rute stok.pengaturan dipindah ke grup role:owner di bawah)
 
     // Kelola lokasi stok
     Route::get('/lokasi', [LokasiController::class, 'index'])->name('lokasi.index');
@@ -67,9 +68,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/pesanan/{pesanan}/selesai', [PesananController::class, 'selesaikan'])->name('pesanan.selesai');
     Route::post('/pesanan/{pesanan}/batal', [PesananController::class, 'batalkan'])->name('pesanan.batal');
 
-    // Log notifikasi WhatsApp (Owner dan Petugas)
+    // Log notifikasi WhatsApp dan template pesan (Owner dan Petugas)
     Route::get('/notifikasi', [LogNotifikasiController::class, 'index'])->name('notifikasi.index');
     Route::post('/notifikasi/{log}/kirim-ulang', [LogNotifikasiController::class, 'kirimUlang'])->whereNumber('log')->name('notifikasi.kirim-ulang');
+    Route::get('/notifikasi/template', [TemplateNotifikasiController::class, 'index'])->name('notifikasi.template');
+    Route::put('/notifikasi/template/{kode}', [TemplateNotifikasiController::class, 'update'])->name('notifikasi.template.update');
+    Route::post('/notifikasi/template/{kode}/reset', [TemplateNotifikasiController::class, 'reset'])->name('notifikasi.template.reset');
 
     // Modul Retur: tab untuk Owner dan Petugas (Petugas mencatat keluhan dan kejadian)
     Route::get('/retur/customer', [ReturCustomerController::class, 'index'])->name('retur.customer');
@@ -80,6 +84,9 @@ Route::middleware('auth')->group(function () {
     // Page khusus Owner
     Route::middleware('role:owner')->group(function () {
         Route::get('/laporan', fn () => 'Halaman laporan (khusus Owner)');
+
+        // Batas stok menipis per barang: hanya Owner yang boleh mengatur
+        Route::patch('/stok/{barang}/pengaturan', [StokController::class, 'aturPengaturan'])->whereNumber('barang')->name('stok.pengaturan');
 
         // Kerugian operasional: nilai rupiah kerugian toko hanya untuk Owner
         Route::get('/kerugian', [KerugianController::class, 'index'])->name('kerugian.index');
