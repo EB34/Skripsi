@@ -65,7 +65,12 @@
             <tbody>
                 @foreach ($penjualan->detail as $d)
                     <tr>
-                        <td>{{ $d->barang->merk }}<br><span class="mono text-muted" style="font-size:.7rem">{{ $d->barang->kode_model }}</span></td>
+                        <td>
+                            {{ $d->barang->merk }}<br><span class="mono text-muted" style="font-size:.7rem">{{ $d->barang->kode_model }}</span>
+                            @if ($d->keterangan)
+                                <br><span style="font-size:.72rem">{{ $d->keterangan }}</span>
+                            @endif
+                        </td>
                         <td class="text-end">{{ $d->jumlah }}</td>
                         <td class="text-end">{{ number_format($d->harga_jual, 0, ',', '.') }}</td>
                         <td class="text-end">{{ number_format($d->harga_jual * $d->jumlah, 0, ',', '.') }}</td>

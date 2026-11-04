@@ -23,6 +23,7 @@ return new class extends Migration
             $table->unsignedInteger('stok_tersedia')->default(0);
             $table->unsignedInteger('stok_rusak')->default(0);
             $table->unsignedInteger('stok_minimum')->default(5); // batas "stok menipis", bisa diatur per barang
+            $table->boolean('tanpa_stok')->default(false);       // BARU: lensa custom yang dipesan manual ke supplier
             $table->timestamps();
         });
     }

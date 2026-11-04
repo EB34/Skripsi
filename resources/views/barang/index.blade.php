@@ -21,6 +21,7 @@
         'harga_jual' => old('harga_jual'),
         'sph'        => old('sph'),
         'cyl'        => old('cyl'),
+        'tanpa_stok' => (bool) old('tanpa_stok'),
     ];
 @endphp
 
@@ -65,21 +66,30 @@
             <div class="barang-body">
                 <div class="barang-top">
                     <span class="kode-chip mono">{{ $b->kode_model }}</span>
-                    <span class="badge-stok {{ $kelasStok }}">Stok: {{ $b->stok_tersedia }}</span>
+                    @if ($b->tanpa_stok)
+                        <span class="badge-stok">Custom</span>
+                    @else
+                        <span class="badge-stok {{ $kelasStok }}">Stok: {{ $b->stok_tersedia }}</span>
+                    @endif
                 </div>
 
                 <div class="barang-nama">{{ $b->merk }}</div>
                 <div class="barang-info">
                     Jenis: {{ ucfirst($b->jenis) }}<br>
-                    @if (in_array($b->jenis, ['lensa', 'softlens'], true))
-                        <span class="ukuran-lensa">{{ $b->ukuran_label ?? 'Ukuran belum diisi' }}</span><br>
+                    @if ($b->tanpa_stok)
+                        <span class="ukuran-lensa">Ukuran diisi saat transaksi</span><br>
+                        Tanpa stok (dipesan ke supplier)
+                    @else
+                        @if (in_array($b->jenis, ['lensa', 'softlens'], true))
+                            <span class="ukuran-lensa">{{ $b->ukuran_label ?? 'Ukuran belum diisi' }}</span><br>
+                        @endif
+                        Stok rusak: {{ $b->stok_rusak }}
                     @endif
-                    Stok rusak: {{ $b->stok_rusak }}
                 </div>
 
                 <div class="barang-foot">
                     <div>
-                        <div class="harga-label">Harga Jual</div>
+                        <div class="harga-label">{{ $b->tanpa_stok ? 'Harga Awal' : 'Harga Jual' }}</div>
                         <div class="harga">Rp {{ number_format($b->harga_jual, 0, ',', '.') }}</div>
                     </div>
                     <div class="d-flex gap-1">
@@ -90,7 +100,8 @@
                                 data-merk="{{ $b->merk }}"
                                 data-harga="{{ (int) $b->harga_jual }}"
                                 data-sph="{{ $b->sph }}"
-                                data-cyl="{{ $b->cyl }}">
+                                data-cyl="{{ $b->cyl }}"
+                                data-custom="{{ $b->tanpa_stok ? 1 : 0 }}">
                             <i class="bi bi-pencil-square"></i>
                         </button>
                         <form action="{{ route('barang.destroy', $b) }}" method="POST"
@@ -160,7 +171,18 @@
                         <input type="text" name="merk" class="form-control" required>
                     </div>
 
-                    {{-- Ukuran: hanya tampil kalau jenis = Lensa atau Softlens --}}
+                    {{-- Lensa custom: hanya tampil kalau jenis = Lensa --}}
+                    <div class="mb-3 d-none" id="blok-custom">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="tanpa_stok" value="1" id="cek-custom">
+                            <label class="form-check-label fw-semibold" for="cek-custom">Lensa custom (tanpa stok)</label>
+                        </div>
+                        <div class="form-text">
+                            Untuk lensa yang dipesan manual ke supplier. Stok tidak dihitung, dan ukuran serta harga diisi saat transaksi.
+                        </div>
+                    </div>
+
+                    {{-- Ukuran: hanya tampil kalau jenis = Lensa atau Softlens (dan bukan lensa custom) --}}
                     <div class="row g-3 mb-3 d-none" id="blok-ukuran">
                         <div class="col-6">
                             <label class="form-label">SPH <span class="text-danger">*</span></label>
@@ -176,7 +198,7 @@
                     </div>
 
                     <div class="mb-1">
-                        <label class="form-label">Harga Jual (Rp)</label>
+                        <label class="form-label" id="label-harga">Harga Jual (Rp)</label>
                         <input type="number" name="harga_jual" min="0" step="any" class="form-control" required>
                     </div>
                 </div>
@@ -207,16 +229,28 @@
     const elId     = document.getElementById('field-id');
     const tombolSimpan = document.getElementById('tombol-simpan');
     const blokUkuran   = document.getElementById('blok-ukuran');
+    const blokCustom   = document.getElementById('blok-custom');
+    const cekCustom    = document.getElementById('cek-custom');
+    const labelHarga   = document.getElementById('label-harga');
 
-    // Kolom SPH/CYL muncul untuk lensa dan softlens; SPH wajib hanya saat itu
+    // - Checkbox custom hanya muncul untuk jenis Lensa
+    // - SPH/CYL muncul untuk lensa dan softlens, kecuali lensa custom (ukurannya diisi saat transaksi)
     function aturUkuran() {
         const jenis = form.elements['jenis'].value;
-        const berukuran = jenis === 'lensa' || jenis === 'softlens';
+        const lensa = jenis === 'lensa';
+
+        blokCustom.classList.toggle('d-none', !lensa);
+        if (!lensa) cekCustom.checked = false;
+
+        const berukuran = (lensa || jenis === 'softlens') && !cekCustom.checked;
         blokUkuran.classList.toggle('d-none', !berukuran);
         form.elements['sph'].required = berukuran;
+
+        labelHarga.textContent = cekCustom.checked ? 'Harga Awal (Rp), boleh diubah saat transaksi' : 'Harga Jual (Rp)';
     }
 
     form.elements['jenis'].addEventListener('change', aturUkuran);
+    cekCustom.addEventListener('change', aturUkuran);
 
     function bukaForm(mode, data = {}) {
         const ubah = mode === 'ubah';
@@ -234,6 +268,7 @@
         form.elements['harga_jual'].value = data.harga_jual ?? '';
         form.elements['sph'].value        = data.sph ?? '';
         form.elements['cyl'].value        = data.cyl ?? '';
+        cekCustom.checked                 = !!data.tanpa_stok;
 
         aturUkuran();
         modal.show();
@@ -264,6 +299,7 @@
             harga_jual: tombol.dataset.harga,
             sph: tombol.dataset.sph,
             cyl: tombol.dataset.cyl,
+            tanpa_stok: tombol.dataset.custom === '1',
         });
     });
 

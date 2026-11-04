@@ -13,9 +13,10 @@ return new class extends Migration
             $table->foreignId('penjualan_id')->constrained('penjualan')->cascadeOnDelete();
             $table->foreignId('barang_id')->constrained('barang');
             $table->unsignedInteger('jumlah');
-            $table->unsignedInteger('jumlah_kembali')->default(0);   // BARU: frame yang dikembalikan ke stok saat pesanan batal
+            $table->unsignedInteger('jumlah_kembali')->default(0);   // frame yang dikembalikan ke stok saat pesanan batal
             $table->decimal('harga_jual', 12, 2);
             $table->decimal('hpp', 12, 2)->default(0);
+            $table->string('keterangan', 150)->nullable();           // BARU: ukuran/spesifikasi yang diketik petugas untuk lensa custom
             $table->timestamps();
         });
     }

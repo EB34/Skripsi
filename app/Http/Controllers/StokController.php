@@ -16,36 +16,20 @@ use RuntimeException;
 
 class StokController extends Controller
 {
-    /** Tab 1: Monitoring Stok Real Time (bisa dicari). */
-    public function index(Request $request)
+    /** Tab 1: Monitoring Stok Real Time. */
+    public function index()
     {
-        $cari = trim((string) $request->input('cari'));
-
         // Barang paling berisiko (stok paling dekat/di bawah batas) tampil paling atas.
         // CAST ke SIGNED wajib: kolom UNSIGNED dikurangi bisa error kalau hasilnya negatif.
+        // Lensa custom (tanpa stok) tidak dimonitor karena memang tidak punya stok.
         $daftarBarang = Barang::query()
+            ->where('tanpa_stok', false)
             ->with('stokLokasi.lokasi')
-            ->when($cari !== '', function ($query) use ($cari) {
-                $query->where(function ($w) use ($cari) {
-                    $w->where('kode_model', 'like', "%{$cari}%")
-                      ->orWhere('merk', 'like', "%{$cari}%")
-                      // Sama dengan kolom "Nama Barang" di tabel: jenis + merk (mis. "Frame Contoh")
-                      ->orWhereRaw("CONCAT(jenis, ' ', merk) like ?", ["%{$cari}%"]);
-
-                    // Mengetik angka (mis. -2.25 atau -2,25) mencari lensa/softlens dengan SPH itu
-                    $angka = str_replace(',', '.', $cari);
-                    if (is_numeric($angka)) {
-                        $w->orWhere('sph', (float) $angka);
-                    }
-                });
-            })
             ->orderByRaw('CAST(stok_tersedia AS SIGNED) - CAST(stok_minimum AS SIGNED) asc')
             ->orderBy('kode_model')
-            ->paginate(10)
-            ->withQueryString();
+            ->paginate(10);
 
         // Mencapai atau di bawah batas minimum (sudah termasuk yang habis). Sama dengan pil di bar atas.
-        // Sengaja dihitung dari SEMUA barang, tidak ikut terfilter oleh pencarian.
         $jumlahMenipis = Barang::menipis()->count();
 
         return view('stok.index', [
@@ -107,30 +91,14 @@ class StokController extends Controller
         ]);
     }
 
-    /** Tab 3: Penanganan Barang Rusak (bisa dicari). */
-    public function rusak(Request $request)
+    /** Tab 3: Penanganan Barang Rusak. */
+    public function rusak()
     {
-        $cari = trim((string) $request->input('cari'));
-
         // Yang masih menunggu keputusan tampil paling atas.
         $daftarRusak = BarangRusak::with(['barang', 'pelapor'])
-            ->when($cari !== '', function ($query) use ($cari) {
-                $query->where(function ($w) use ($cari) {
-                    $w->where('alasan', 'like', "%{$cari}%")
-                      ->orWhereHas('barang', function ($b) use ($cari) {
-                          $b->where(function ($x) use ($cari) {
-                              $x->where('kode_model', 'like', "%{$cari}%")
-                                ->orWhere('merk', 'like', "%{$cari}%")
-                                ->orWhereRaw("CONCAT(jenis, ' ', merk) like ?", ["%{$cari}%"]);
-                          });
-                      })
-                      ->orWhereHas('pelapor', fn ($p) => $p->where('nama', 'like', "%{$cari}%"));
-                });
-            })
             ->orderByRaw("status = 'menunggu_keputusan' desc")
             ->orderByDesc('id')
-            ->paginate(10)
-            ->withQueryString();
+            ->paginate(10);
 
         return view('stok.rusak', [
             'daftarRusak' => $daftarRusak,

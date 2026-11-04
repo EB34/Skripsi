@@ -57,7 +57,7 @@
     }
     #keranjang-kosong { text-align: center; color: #888; font-size: .8rem; padding: 40px 12px; }
     .cart-row {
-        display: flex; align-items: center; gap: 8px;
+        display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
         background: #fff; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px;
     }
     .cart-info { flex: 1; min-width: 0; }
@@ -65,6 +65,9 @@
     .cart-ukuran { font-size: .68rem; font-weight: 600; color: #1f5f87; }
     .cart-harga { font-size: .7rem; color: #555; }
     .cart-qty { display: flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 600; }
+    /* Isian harga dan keterangan untuk lensa custom */
+    .cart-extra { flex: 0 0 100%; display: grid; gap: 6px; }
+    .cart-extra input { font-size: .75rem; }
 
     /* Kotak DP */
     .box-dp {
@@ -169,23 +172,32 @@
                 @php
                     // Definisi "menipis" per barang (stok_minimum), sama dengan halaman Pengelolaan Stok
                     $kelasStok = $b->status_stok === 'aman' ? '' : $b->status_stok;
+                    // Lensa custom tidak punya stok, jadi tidak pernah dianggap habis
+                    $habis = ! $b->tanpa_stok && $b->stok_tersedia <= 0;
                 @endphp
-                <div class="pos-card {{ $b->stok_tersedia <= 0 ? 'habis' : '' }}"
+                <div class="pos-card {{ $habis ? 'habis' : '' }}"
                      data-id="{{ $b->id }}"
                      data-kode="{{ $b->kode_model }}"
                      data-merk="{{ $b->merk }}"
                      data-jenis="{{ $b->jenis }}"
                      data-ukuran="{{ $b->ukuran_label }}"
                      data-harga="{{ (int) $b->harga_jual }}"
-                     data-stok="{{ $b->stok_tersedia }}">
+                     data-stok="{{ $b->stok_tersedia }}"
+                     data-custom="{{ $b->tanpa_stok ? 1 : 0 }}">
                     <div class="top">
                         <span class="kode-chip mono">{{ $b->kode_model }}</span>
-                        <span class="badge-stok {{ $kelasStok }}">Stok: {{ $b->stok_tersedia }}</span>
+                        @if ($b->tanpa_stok)
+                            <span class="badge-stok">Custom</span>
+                        @else
+                            <span class="badge-stok {{ $kelasStok }}">Stok: {{ $b->stok_tersedia }}</span>
+                        @endif
                     </div>
                     <div class="nama">{{ $b->merk }}</div>
                     <div class="info">
                         {{ ucfirst($b->jenis) }}
-                        @if ($b->ukuran_label)
+                        @if ($b->tanpa_stok)
+                            <br><span class="ukuran">Harga dan ukuran diisi di keranjang</span>
+                        @elseif ($b->ukuran_label)
                             <br><span class="ukuran">{{ $b->ukuran_label }}</span>
                         @endif
                     </div>
@@ -313,7 +325,11 @@
     const elDpNom    = document.getElementById('dp-nominal');
     const elDpSisa   = document.getElementById('dp-sisa');
 
-    const keranjang = {};          // id barang -> {id, kode, merk, jenis, ukuran, harga, stok, qty}
+    // kunci -> {id, kode, merk, jenis, ukuran, harga, stok, qty, custom, keterangan}
+    // Barang biasa memakai id barang sebagai kunci (satu baris per barang).
+    // Lensa custom memakai kunci unik "c1", "c2", ... (satu baris per biji).
+    const keranjang = {};
+    let urutCustom = 0;
 
     function rp(angka) {
         return 'Rp ' + Math.round(angka).toLocaleString('id-ID');
@@ -332,6 +348,13 @@
             if (it.jenis === 'lensa') subLensa += it.harga * it.qty;
         });
         return { subtotal: subtotal, subLensa: subLensa, adaFrame: adaFrame };
+    }
+
+    // Lensa custom wajib punya harga dan keterangan sebelum boleh dibayar
+    function customLengkap() {
+        return Object.values(keranjang).every(it =>
+            !it.custom || (it.harga > 0 && it.keterangan.trim() !== '')
+        );
     }
 
     function hitung() {
@@ -369,16 +392,16 @@
         boxTunai.style.display = tunai ? 'block' : 'none';
         elUang.disabled        = !tunai;
 
-        btnBayar.disabled = !(adaCustomer && r.subtotal > 0 && (!tunai || uang >= bayarSekarang));
+        btnBayar.disabled = !(adaCustomer && r.subtotal > 0 && customLengkap() && (!tunai || uang >= bayarSekarang));
     }
 
     function render() {
         daftar.innerHTML = '';
-        const ids = Object.keys(keranjang);
-        kosong.style.display = ids.length ? 'none' : 'block';
+        const kunciSemua = Object.keys(keranjang);
+        kosong.style.display = kunciSemua.length ? 'none' : 'block';
 
-        ids.forEach((id, i) => {
-            const it = keranjang[id];
+        kunciSemua.forEach((kunci, i) => {
+            const it = keranjang[kunci];
 
             const row = document.createElement('div');
             row.className = 'cart-row';
@@ -388,31 +411,75 @@
                     <div class="cart-ukuran"></div>
                     <div class="cart-harga"></div>
                 </div>
-                <div class="cart-qty">
-                    <button type="button" class="icon-btn kurang">-</button>
-                    <span class="jml"></span>
-                    <button type="button" class="icon-btn tambah">+</button>
-                </div>
+                <div class="cart-qty"></div>
                 <button type="button" class="icon-btn hapus" title="Hapus"><i class="bi bi-x-lg"></i></button>
                 <input type="hidden" name="items[${i}][barang_id]" value="${it.id}">
                 <input type="hidden" name="items[${i}][jumlah]" value="${it.qty}">
             `;
             row.querySelector('.cart-nama').textContent   = it.merk + ' (' + it.kode + ')';
             row.querySelector('.cart-ukuran').textContent = it.ukuran;
-            row.querySelector('.cart-harga').textContent  = rp(it.harga) + ' x ' + it.qty + ' = ' + rp(it.harga * it.qty);
-            row.querySelector('.jml').textContent         = it.qty;
 
-            row.querySelector('.kurang').onclick = () => {
-                it.qty--;
-                if (it.qty <= 0) delete keranjang[id];
-                render();
-            };
-            row.querySelector('.tambah').onclick = () => {
-                if (it.qty < it.stok) it.qty++;
-                render();
-            };
+            const kolomQty = row.querySelector('.cart-qty');
+
+            if (it.custom) {
+                // Lensa custom: 1 biji per baris, harga dan keterangan diketik petugas
+                row.querySelector('.cart-harga').textContent = 'Lensa custom (tanpa stok)';
+                kolomQty.textContent = '1 biji';
+
+                const extra = document.createElement('div');
+                extra.className = 'cart-extra';
+
+                const inHarga = document.createElement('input');
+                inHarga.type = 'number';
+                inHarga.min = '0';
+                inHarga.step = 'any';
+                inHarga.name = 'items[' + i + '][harga]';
+                inHarga.className = 'form-control form-control-sm';
+                inHarga.placeholder = 'Harga lensa (Rp) *';
+                inHarga.value = it.harga > 0 ? it.harga : '';
+                inHarga.addEventListener('input', () => {
+                    it.harga = parseFloat(inHarga.value) || 0;
+                    hitung();                  // tanpa render ulang supaya kursor tidak pindah
+                });
+
+                const inKet = document.createElement('input');
+                inKet.type = 'text';
+                inKet.maxLength = 150;
+                inKet.name = 'items[' + i + '][keterangan]';
+                inKet.className = 'form-control form-control-sm';
+                inKet.placeholder = 'Ukuran/keterangan, contoh: R -8.00 / L -7.50 *';
+                inKet.value = it.keterangan;
+                inKet.addEventListener('input', () => {
+                    it.keterangan = inKet.value;
+                    hitung();
+                });
+
+                extra.appendChild(inHarga);
+                extra.appendChild(inKet);
+                row.appendChild(extra);
+            } else {
+                row.querySelector('.cart-harga').textContent = rp(it.harga) + ' x ' + it.qty + ' = ' + rp(it.harga * it.qty);
+
+                kolomQty.innerHTML = `
+                    <button type="button" class="icon-btn kurang">-</button>
+                    <span class="jml"></span>
+                    <button type="button" class="icon-btn tambah">+</button>
+                `;
+                kolomQty.querySelector('.jml').textContent = it.qty;
+
+                kolomQty.querySelector('.kurang').onclick = () => {
+                    it.qty--;
+                    if (it.qty <= 0) delete keranjang[kunci];
+                    render();
+                };
+                kolomQty.querySelector('.tambah').onclick = () => {
+                    if (it.qty < it.stok) it.qty++;
+                    render();
+                };
+            }
+
             row.querySelector('.hapus').onclick = () => {
-                delete keranjang[id];
+                delete keranjang[kunci];
                 render();
             };
 
@@ -422,7 +489,30 @@
         hitung();
     }
 
-    function tambahKeKeranjang(kartu, jumlah = 1) {
+    // isian dipakai untuk memulihkan lensa custom: {harga, keterangan}
+    function tambahKeKeranjang(kartu, jumlah = 1, isian = null) {
+        const jenis  = kartu.dataset.jenis;
+        const custom = kartu.dataset.custom === '1';
+
+        if (custom) {
+            // Tiap klik = satu baris baru (satu biji)
+            const kunci = 'c' + (++urutCustom);
+            keranjang[kunci] = {
+                id: kartu.dataset.id,
+                kode: kartu.dataset.kode,
+                merk: kartu.dataset.merk,
+                jenis: jenis,
+                ukuran: '',
+                harga: isian ? (parseFloat(isian.harga) || 0) : (parseFloat(kartu.dataset.harga) || 0),
+                stok: 1,
+                qty: 1,
+                custom: true,
+                keterangan: isian ? (isian.keterangan || '') : '',
+            };
+            render();
+            return;
+        }
+
         const stok = parseInt(kartu.dataset.stok);
         if (stok <= 0) return;
 
@@ -432,11 +522,13 @@
                 id: id,
                 kode: kartu.dataset.kode,
                 merk: kartu.dataset.merk,
-                jenis: kartu.dataset.jenis,
+                jenis: jenis,
                 ukuran: kartu.dataset.ukuran || '',
                 harga: parseFloat(kartu.dataset.harga),
                 stok: stok,
                 qty: 0,
+                custom: false,
+                keterangan: '',
             };
         }
         keranjang[id].qty = Math.min(keranjang[id].qty + jumlah, stok);
@@ -487,7 +579,13 @@
     const lama = JSON.parse(document.getElementById('data-pos').dataset.lama);
     lama.forEach(it => {
         const kartu = grid.querySelector('.pos-card[data-id="' + it.barang_id + '"]');
-        if (kartu) tambahKeKeranjang(kartu, parseInt(it.jumlah) || 1);
+        if (!kartu) return;
+
+        if (kartu.dataset.custom === '1') {
+            tambahKeKeranjang(kartu, 1, { harga: it.harga, keterangan: it.keterangan });
+        } else {
+            tambahKeKeranjang(kartu, parseInt(it.jumlah) || 1);
+        }
     });
 
     render();

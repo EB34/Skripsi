@@ -33,13 +33,20 @@ class BarangController extends Controller
             'jenis'      => ['required', Rule::in(['frame', 'lensa', 'softlens'])],
             'merk'       => ['required', 'string', 'max:255'],
             'harga_jual' => ['required', 'numeric', 'min:0'],
-            'sph'        => ['nullable', 'required_if:jenis,lensa,softlens', 'numeric', 'between:-20,20', $this->kelipatanSeperempat()],
+            'tanpa_stok' => ['boolean'],
+            // SPH wajib untuk lensa dan softlens, kecuali lensa custom (ukurannya diisi saat transaksi)
+            'sph'        => [
+                'nullable',
+                Rule::requiredIf(fn () => in_array(request('jenis'), self::JENIS_BERUKURAN, true) && ! request()->boolean('tanpa_stok')),
+                'numeric', 'between:-20,20', $this->kelipatanSeperempat(),
+            ],
             'cyl'        => ['nullable', 'numeric', 'between:-10,10', $this->kelipatanSeperempat()],
         ];
     }
 
     // Spasi ganda dijadikan satu supaya "FR  001" dan "FR 001" tidak lolos sebagai dua kode berbeda.
     // Ukuran berlaku untuk lensa dan softlens: frame dikosongkan, CYL yang kosong dianggap 0.
+    // "Tanpa stok" (lensa custom) hanya berlaku untuk jenis lensa dan membuat SPH/CYL dikosongkan.
     private function siapkan(Request $request): void
     {
         $request->merge([
@@ -47,7 +54,13 @@ class BarangController extends Controller
             'merk'       => preg_replace('/\s+/', ' ', trim((string) $request->input('merk'))),
         ]);
 
-        if (! in_array($request->input('jenis'), self::JENIS_BERUKURAN, true)) {
+        $jenis  = $request->input('jenis');
+        $custom = $jenis === 'lensa' && $request->boolean('tanpa_stok');
+
+        // Checkbox yang tidak dicentang tidak dikirim browser, jadi nilainya dipastikan true/false di sini
+        $request->merge(['tanpa_stok' => $custom]);
+
+        if ($custom || ! in_array($jenis, self::JENIS_BERUKURAN, true)) {
             $request->merge(['sph' => null, 'cyl' => null]);
         } elseif ($request->input('cyl') === null || $request->input('cyl') === '') {
             $request->merge(['cyl' => 0]);
@@ -68,7 +81,7 @@ class BarangController extends Controller
                 ? "Kode model {$pemakai->kode_model} sudah dipakai oleh barang {$pemakai->merk}. "
                     . 'Gunakan kode lain, atau tambah stoknya lewat Pembelian Supplier.'
                 : 'Kode model sudah dipakai barang lain.',
-            'sph.required_if' => 'SPH wajib diisi untuk lensa dan softlens.',
+            'sph.required' => 'SPH wajib diisi untuk lensa dan softlens (kecuali lensa custom).',
         ];
     }
 

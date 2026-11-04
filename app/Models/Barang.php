@@ -9,16 +9,24 @@ class Barang extends Model
     protected $table = 'barang';
     protected $guarded = [];
 
+    protected $casts = [
+        'tanpa_stok' => 'boolean',
+    ];
+
     public function detailPembelian() { return $this->hasMany(DetailPembelian::class, 'barang_id'); }
     public function mutasiStok() { return $this->hasMany(MutasiStok::class, 'barang_id'); }
     public function kondisi() { return $this->hasMany(KondisiBarang::class, 'barang_id'); }
     public function laporanRusak() { return $this->hasMany(BarangRusak::class, 'barang_id'); }
     public function stokLokasi() { return $this->hasMany(StokLokasi::class, 'barang_id'); }
 
-    /** Barang yang stoknya mencapai atau di bawah batas minimumnya sendiri (sudah termasuk yang habis). */
+    /**
+     * Barang yang stoknya mencapai atau di bawah batas minimumnya sendiri (sudah termasuk yang habis).
+     * Barang tanpa stok (lensa custom) tidak pernah dihitung.
+     */
     public function scopeMenipis($query)
     {
-        return $query->whereColumn('stok_tersedia', '<=', 'stok_minimum');
+        return $query->where('tanpa_stok', false)
+            ->whereColumn('stok_tersedia', '<=', 'stok_minimum');
     }
 
     /** Batch FIFO yang masih ada sisanya, dari yang terlama (aturan sama dengan keluarFifo). */
@@ -44,9 +52,13 @@ class Barang extends Model
     /**
      * Status stok: habis / menipis / aman.
      * "Menipis" jika stok <= stok_minimum milik barang itu sendiri.
+     * Barang tanpa stok (lensa custom) selalu "aman" karena memang tidak punya stok.
      */
     public function getStatusStokAttribute(): string
     {
+        if ($this->tanpa_stok) {
+            return 'aman';
+        }
         if ($this->stok_tersedia <= 0) {
             return 'habis';
         }
@@ -69,7 +81,7 @@ class Barang extends Model
 
     /**
      * Ukuran sebagai teks, misalnya "SPH -2.25 / CYL -0.50".
-     * Berlaku untuk lensa dan softlens. Null untuk frame atau barang yang SPH-nya belum diisi.
+     * Berlaku untuk lensa dan softlens. Null untuk frame, lensa custom, atau barang yang SPH-nya belum diisi.
      */
     public function getUkuranLabelAttribute(): ?string
     {
