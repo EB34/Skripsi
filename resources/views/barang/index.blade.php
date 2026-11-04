@@ -71,7 +71,7 @@
                 <div class="barang-nama">{{ $b->merk }}</div>
                 <div class="barang-info">
                     Jenis: {{ ucfirst($b->jenis) }}<br>
-                    @if ($b->jenis === 'lensa')
+                    @if (in_array($b->jenis, ['lensa', 'softlens'], true))
                         <span class="ukuran-lensa">{{ $b->ukuran_label ?? 'Ukuran belum diisi' }}</span><br>
                     @endif
                     Stok rusak: {{ $b->stok_rusak }}
@@ -160,7 +160,7 @@
                         <input type="text" name="merk" class="form-control" required>
                     </div>
 
-                    {{-- Ukuran lensa: hanya tampil kalau jenis = Lensa --}}
+                    {{-- Ukuran: hanya tampil kalau jenis = Lensa atau Softlens --}}
                     <div class="row g-3 mb-3 d-none" id="blok-ukuran">
                         <div class="col-6">
                             <label class="form-label">SPH <span class="text-danger">*</span></label>
@@ -172,7 +172,7 @@
                             <input type="number" name="cyl" step="0.25" min="-10" max="10" class="form-control"
                                    placeholder="Kosong = 0">
                         </div>
-                        <div class="col-12 form-text mt-1">Satu kode model lensa mewakili satu ukuran. Kelipatan 0,25.</div>
+                        <div class="col-12 form-text mt-1">Satu kode model lensa atau softlens mewakili satu ukuran. Kelipatan 0,25.</div>
                     </div>
 
                     <div class="mb-1">
@@ -208,11 +208,12 @@
     const tombolSimpan = document.getElementById('tombol-simpan');
     const blokUkuran   = document.getElementById('blok-ukuran');
 
-    // Kolom SPH/CYL hanya muncul untuk lensa; SPH wajib hanya saat itu
+    // Kolom SPH/CYL muncul untuk lensa dan softlens; SPH wajib hanya saat itu
     function aturUkuran() {
-        const lensa = form.elements['jenis'].value === 'lensa';
-        blokUkuran.classList.toggle('d-none', !lensa);
-        form.elements['sph'].required = lensa;
+        const jenis = form.elements['jenis'].value;
+        const berukuran = jenis === 'lensa' || jenis === 'softlens';
+        blokUkuran.classList.toggle('d-none', !berukuran);
+        form.elements['sph'].required = berukuran;
     }
 
     form.elements['jenis'].addEventListener('change', aturUkuran);

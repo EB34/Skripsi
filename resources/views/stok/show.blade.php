@@ -1,6 +1,13 @@
 @extends('layouts.app')
 
 @section('content')
+@php
+    /** @var \App\Models\User $user */
+    $user = auth()->user();
+    // Hanya Owner yang boleh mengubah batas stok menipis
+    $bolehAturBatas = $user->isOwner();
+@endphp
+
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
@@ -92,22 +99,30 @@
             </div>
         </div>
 
-        {{-- Pengaturan barang --}}
+        {{-- Pengaturan barang: batas stok menipis hanya bisa diubah Owner --}}
         <div class="col-md-5">
             <div class="card shadow-sm h-100">
                 <div class="card-header fw-semibold">Pengaturan Barang</div>
                 <div class="card-body">
-                    <form method="POST" action="{{ route('stok.pengaturan', $barang->id) }}">
-                        @csrf
-                        @method('PATCH')
+                    @if($bolehAturBatas)
+                        <form method="POST" action="{{ route('stok.pengaturan', $barang->id) }}">
+                            @csrf
+                            @method('PATCH')
+                            <label class="form-label">Batas Stok Menipis</label>
+                            <div class="d-flex gap-2">
+                                <input type="number" name="stok_minimum" min="0" max="100000"
+                                       value="{{ old('stok_minimum', $barang->stok_minimum) }}" class="form-control" required>
+                                <button class="btn btn-outline-secondary">Simpan</button>
+                            </div>
+                            <div class="form-text">Dianggap menipis jika stok &le; angka ini.</div>
+                        </form>
+                    @else
                         <label class="form-label">Batas Stok Menipis</label>
-                        <div class="d-flex gap-2">
-                            <input type="number" name="stok_minimum" min="0" max="100000"
-                                   value="{{ old('stok_minimum', $barang->stok_minimum) }}" class="form-control" required>
-                            <button class="btn btn-outline-secondary">Simpan</button>
+                        <input type="text" class="form-control" value="{{ $barang->stok_minimum }}" disabled>
+                        <div class="form-text">
+                            Dianggap menipis jika stok &le; angka ini. Hanya Owner yang dapat mengubah batas ini.
                         </div>
-                        <div class="form-text">Dianggap menipis jika stok &le; angka ini.</div>
-                    </form>
+                    @endif
                 </div>
             </div>
         </div>

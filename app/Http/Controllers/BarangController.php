@@ -9,7 +9,10 @@ use Illuminate\Validation\Rule;
 
 class BarangController extends Controller
 {
-    // Ukuran lensa harus kelipatan 0,25 (misalnya -2.25, bukan -2.20)
+    // Jenis barang yang punya ukuran SPH/CYL
+    private const JENIS_BERUKURAN = ['lensa', 'softlens'];
+
+    // Ukuran harus kelipatan 0,25 (misalnya -2.25, bukan -2.20)
     private function kelipatanSeperempat(): \Closure
     {
         return function (string $atribut, $nilai, \Closure $gagal) {
@@ -30,13 +33,13 @@ class BarangController extends Controller
             'jenis'      => ['required', Rule::in(['frame', 'lensa', 'softlens'])],
             'merk'       => ['required', 'string', 'max:255'],
             'harga_jual' => ['required', 'numeric', 'min:0'],
-            'sph'        => ['nullable', 'required_if:jenis,lensa', 'numeric', 'between:-20,20', $this->kelipatanSeperempat()],
+            'sph'        => ['nullable', 'required_if:jenis,lensa,softlens', 'numeric', 'between:-20,20', $this->kelipatanSeperempat()],
             'cyl'        => ['nullable', 'numeric', 'between:-10,10', $this->kelipatanSeperempat()],
         ];
     }
 
     // Spasi ganda dijadikan satu supaya "FR  001" dan "FR 001" tidak lolos sebagai dua kode berbeda.
-    // Ukuran hanya berlaku untuk lensa: jenis lain dikosongkan, CYL lensa yang kosong dianggap 0.
+    // Ukuran berlaku untuk lensa dan softlens: frame dikosongkan, CYL yang kosong dianggap 0.
     private function siapkan(Request $request): void
     {
         $request->merge([
@@ -44,7 +47,7 @@ class BarangController extends Controller
             'merk'       => preg_replace('/\s+/', ' ', trim((string) $request->input('merk'))),
         ]);
 
-        if ($request->input('jenis') !== 'lensa') {
+        if (! in_array($request->input('jenis'), self::JENIS_BERUKURAN, true)) {
             $request->merge(['sph' => null, 'cyl' => null]);
         } elseif ($request->input('cyl') === null || $request->input('cyl') === '') {
             $request->merge(['cyl' => 0]);
@@ -65,7 +68,7 @@ class BarangController extends Controller
                 ? "Kode model {$pemakai->kode_model} sudah dipakai oleh barang {$pemakai->merk}. "
                     . 'Gunakan kode lain, atau tambah stoknya lewat Pembelian Supplier.'
                 : 'Kode model sudah dipakai barang lain.',
-            'sph.required_if' => 'SPH wajib diisi untuk lensa.',
+            'sph.required_if' => 'SPH wajib diisi untuk lensa dan softlens.',
         ];
     }
 
@@ -82,7 +85,7 @@ class BarangController extends Controller
                     $w->where('kode_model', 'like', "%{$cari}%")
                     ->orWhere('merk', 'like', "%{$cari}%");
 
-                    // Mengetik angka (misalnya -2.25 atau -2,25) mencari lensa dengan SPH itu
+                    // Mengetik angka (misalnya -2.25 atau -2,25) mencari lensa/softlens dengan SPH itu
                     $angka = str_replace(',', '.', trim($cari));
                     if (is_numeric($angka)) {
                         $w->orWhere('sph', (float) $angka);

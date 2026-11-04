@@ -68,12 +68,12 @@ class Barang extends Model
     }
 
     /**
-     * Ukuran lensa sebagai teks, misalnya "SPH -2.25 / CYL -0.50".
-     * Null untuk barang selain lensa atau lensa yang SPH-nya belum diisi.
+     * Ukuran sebagai teks, misalnya "SPH -2.25 / CYL -0.50".
+     * Berlaku untuk lensa dan softlens. Null untuk frame atau barang yang SPH-nya belum diisi.
      */
     public function getUkuranLabelAttribute(): ?string
     {
-        if ($this->jenis !== 'lensa' || $this->sph === null) {
+        if (! in_array($this->jenis, ['lensa', 'softlens'], true) || $this->sph === null) {
             return null;
         }
 
