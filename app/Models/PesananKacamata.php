@@ -31,6 +31,8 @@ class PesananKacamata extends Model
     public function refraksi()  { return $this->belongsTo(Refraksi::class, 'refraksi_id'); }
     public function frame()     { return $this->belongsTo(Barang::class, 'frame_id'); }
     public function lensa()     { return $this->belongsTo(Barang::class, 'lensa_id'); }
+    public function lensaOd()   { return $this->belongsTo(DetailPenjualan::class, 'lensa_od_detail_id'); }
+    public function lensaOs()   { return $this->belongsTo(DetailPenjualan::class, 'lensa_os_detail_id'); }
     public function petugas()   { return $this->belongsTo(User::class, 'petugas_id'); }
     public function pencatat()  { return $this->belongsTo(User::class, 'dibuat_oleh'); }
     public function pembatal()  { return $this->belongsTo(User::class, 'dibatalkan_oleh'); }

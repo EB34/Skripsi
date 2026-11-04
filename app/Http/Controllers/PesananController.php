@@ -26,6 +26,7 @@ class PesananController extends Controller
 
         $query = PesananKacamata::with([
             'customer', 'refraksi', 'frame', 'lensa', 'petugas', 'pencatat',
+            'lensaOd.barang', 'lensaOs.barang',
             'penjualan' => fn ($q) => $q->withSum('pembayaran', 'jumlah'),
         ]);
 
@@ -82,12 +83,20 @@ class PesananController extends Controller
             ->whereIn('id', $notaTersedia->pluck('customer_id')->unique())
             ->get();
 
+        // Unit lensa per biji untuk tiap nota (pilihan lensa mata kanan/kiri di modal)
+        $unitPerNota = [];
+        foreach ($notaTersedia as $n) {
+            $lensaNota = $n->detail->filter(fn ($d) => strtolower((string) $d->barang->jenis) === 'lensa');
+            $unitPerNota[$n->id] = PesananService::unitLensa($lensaNota);
+        }
+
         return view('pesanan.index', [
             'pesanan'             => $pesanan,
             'statistik'           => $statistik,
             'cari'                => $cari,
             'status'              => $status,
             'notaTersedia'        => $notaTersedia,
+            'unitPerNota'         => $unitPerNota,
             'refraksiPerCustomer' => PesananService::refraksiPerCustomer($customerNota),
         ]);
     }

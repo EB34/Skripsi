@@ -22,6 +22,9 @@ class PesananService
             'pesanan.estimasi_selesai' => ['nullable', 'date', 'after_or_equal:today'],
             'pesanan.keterangan'       => ['nullable', 'string', 'max:255'],
             'pesanan.pd_total'         => ['nullable', 'numeric', 'between:40,90'],
+            // Kunci unit lensa dari nota, bentuknya "idDetail-nomorBiji" (mis. 12-1)
+            'pesanan.unit_od'          => ['nullable', 'regex:/^\d+-\d+$/'],
+            'pesanan.unit_os'          => ['nullable', 'regex:/^\d+-\d+$/'],
         ];
 
         foreach (self::SISI as $s) {
@@ -43,6 +46,8 @@ class PesananService
             'pesanan.estimasi_selesai' => 'Estimasi selesai',
             'pesanan.keterangan'       => 'Keterangan pesanan',
             'pesanan.pd_total'         => 'PD total',
+            'pesanan.unit_od'          => 'Lensa mata kanan (OD)',
+            'pesanan.unit_os'          => 'Lensa mata kiri (OS)',
         ];
         $sisi  = ['od' => 'mata kanan (OD)', 'os' => 'mata kiri (OS)'];
         $kolom = ['sphere' => 'Sphere', 'cylinder' => 'Cylinder', 'axis' => 'Axis', 'add' => 'Add', 'mono_pd' => 'PD'];
@@ -85,6 +90,50 @@ class PesananService
         }
 
         return $hasil;
+    }
+
+    /**
+     * Memecah baris lensa pada nota menjadi unit per biji.
+     * 1 baris x 2 biji = 2 unit; dua baris berbeda (-1 dan -2) = 2 unit.
+     * Dipakai untuk mengisi pilihan di form dan untuk memvalidasi kiriman form.
+     */
+    public static function unitLensa(Collection $detailLensa): array
+    {
+        $unit = [];
+
+        foreach ($detailLensa as $d) {
+            $b      = $d->barang;
+            $custom = (bool) ($b->tanpa_stok ?? false);
+
+            $label = trim(($b->merk ?? '') . ' ' . ($b->kode_model ?? ''));
+            $rincian = $custom ? trim((string) $d->keterangan) : (string) ($b->ukuran_label ?? '');
+            if ($rincian !== '') {
+                $label .= ' — ' . $rincian;
+            }
+
+            for ($i = 1; $i <= (int) $d->jumlah; $i++) {
+                $unit[] = [
+                    'key'       => $d->id . '-' . $i,
+                    'detail_id' => $d->id,
+                    'label'     => $label . ((int) $d->jumlah > 1 ? " (biji {$i})" : ''),
+                    'custom'    => $custom,
+                    // Lensa custom tidak punya SPH/CYL di data barang: petugas mengetik sendiri
+                    'sph'       => $custom ? null : self::angka($b->sph ?? null),
+                    'cyl'       => $custom ? null : self::angka($b->cyl ?? null),
+                ];
+            }
+        }
+
+        return $unit;
+    }
+
+    private static function angka($v): ?string
+    {
+        if ($v === null || $v === '') {
+            return null;
+        }
+
+        return rtrim(rtrim(number_format((float) $v, 2, '.', ''), '0'), '.') ?: '0';
     }
 
     private static function fmt($v): string
@@ -132,8 +181,9 @@ class PesananService
             if ($frame->count() > 1 || $frame->sum('jumlah') > 1) {
                 throw new RuntimeException('Pesanan hanya bisa dibuat untuk nota yang berisi satu frame.');
             }
-            if ($lensa->count() > 1 || $lensa->sum('jumlah') > 2) {
-                throw new RuntimeException('Pesanan hanya bisa dibuat untuk nota yang berisi satu jenis lensa dengan jumlah 1 atau 2 biji.');
+            // Boleh lebih dari satu baris lensa (mis. -1 dan -2), asal total maksimal 2 biji (kanan dan kiri)
+            if ($lensa->sum('jumlah') > 2) {
+                throw new RuntimeException('Pesanan hanya bisa dibuat untuk nota yang berisi lensa maksimal 2 biji (mata kanan dan kiri).');
             }
 
             $jumlahLensa = (int) $lensa->sum('jumlah');
@@ -155,6 +205,61 @@ class PesananService
             }
             $ukuran['pd_total'] = self::bersih($data['pd_total'] ?? null);
 
+            // ===== Mode nota: lensa untuk tiap mata dipilih dari unit lensa pada nota =====
+            $petaUnit = collect(self::unitLensa($lensa))->keyBy('key');
+            $dipakai  = [
+                'od' => self::bersih($data['unit_od'] ?? null),
+                'os' => self::bersih($data['unit_os'] ?? null),
+            ];
+            $modeNota = $dipakai['od'] !== null || $dipakai['os'] !== null;
+
+            if ($jumlahLensa > 0 && $lensa->count() > 1 && ! $modeNota) {
+                throw new RuntimeException('Nota ini berisi lebih dari satu baris lensa. Pilih "Ambil dari nota pembelian" untuk menentukan lensa mata kanan dan kiri.');
+            }
+
+            $detailMata = ['od' => null, 'os' => null];
+
+            if ($modeNota) {
+                if ($jumlahLensa === 0) {
+                    throw new RuntimeException('Nota ini tidak berisi lensa dari toko, jadi lensa per mata tidak bisa dipilih dari nota.');
+                }
+                if ($dipakai['od'] !== null && $dipakai['od'] === $dipakai['os']) {
+                    throw new RuntimeException('Lensa mata kanan dan mata kiri tidak boleh unit yang sama.');
+                }
+
+                foreach ($dipakai as $s => $kunci) {
+                    if ($kunci !== null && ! $petaUnit->has($kunci)) {
+                        throw new RuntimeException('Lensa yang dipilih tidak berasal dari nota ini.');
+                    }
+                }
+
+                if (count(array_filter($dipakai)) !== $jumlahLensa) {
+                    throw new RuntimeException(
+                        $jumlahLensa === 1
+                            ? 'Lensa berjumlah 1 biji, jadi pilih lensa untuk satu mata saja (kanan atau kiri).'
+                            : 'Lensa berjumlah 2 biji, jadi lensa mata kanan (OD) dan mata kiri (OS) harus dipilih.'
+                    );
+                }
+
+                foreach ($dipakai as $s => $kunci) {
+                    if ($kunci === null) {
+                        // Mata yang tidak memakai lensa: ukuran dikosongkan
+                        $ukuran["{$s}_sphere"]   = null;
+                        $ukuran["{$s}_cylinder"] = null;
+                        continue;
+                    }
+
+                    $unit = $petaUnit[$kunci];
+                    $detailMata[$s] = $unit['detail_id'];
+
+                    // Lensa toko yang ukurannya sudah tercatat: SPH/CYL mengikuti data lensa, bukan kiriman form
+                    if ($unit['sph'] !== null) {
+                        $ukuran["{$s}_sphere"]   = $unit['sph'];
+                        $ukuran["{$s}_cylinder"] = $unit['cyl'];
+                    }
+                }
+            }
+
             // Lensa dari toko: ukuran wajib sesuai jumlah biji. Lensa lama: ukuran boleh kosong.
             if ($jumlahLensa > 0) {
                 $sisiTerisi = collect(self::SISI)->filter(
@@ -174,17 +279,19 @@ class PesananService
             $nomor = 'ORD-' . now()->format('dmY') . '-' . $urut;
 
             return PesananKacamata::create(array_merge($ukuran, [
-                'nomor_pesanan'    => $nomor,
-                'penjualan_id'     => $nota->id,
-                'customer_id'      => $nota->customer_id,
-                'refraksi_id'      => $refraksiId,
-                'frame_id'         => $frame->first()?->barang_id,
-                'lensa_id'         => $lensa->first()?->barang_id,
-                'jumlah_lensa'     => $jumlahLensa,
-                'dibuat_oleh'      => $userId,
-                'status'           => 'menunggu',
-                'estimasi_selesai' => self::bersih($data['estimasi_selesai'] ?? null),
-                'keterangan'       => self::bersih($data['keterangan'] ?? null),
+                'nomor_pesanan'      => $nomor,
+                'penjualan_id'       => $nota->id,
+                'customer_id'        => $nota->customer_id,
+                'refraksi_id'        => $refraksiId,
+                'frame_id'           => $frame->first()?->barang_id,
+                'lensa_id'           => $lensa->first()?->barang_id,
+                'jumlah_lensa'       => $jumlahLensa,
+                'lensa_od_detail_id' => $detailMata['od'],
+                'lensa_os_detail_id' => $detailMata['os'],
+                'dibuat_oleh'        => $userId,
+                'status'             => 'menunggu',
+                'estimasi_selesai'   => self::bersih($data['estimasi_selesai'] ?? null),
+                'keterangan'         => self::bersih($data['keterangan'] ?? null),
             ]));
         });
     }

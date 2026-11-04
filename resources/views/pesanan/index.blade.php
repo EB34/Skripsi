@@ -99,6 +99,11 @@
     $rp = fn ($v) => 'Rp ' . number_format((float) $v, 0, ',', '.');
     $namaBarang = fn ($b) => $b ? trim(($b->merk ?? '') . ' ' . ($b->kode_model ?? '')) : null;
 
+    // Nama lensa dari baris nota (ditambah keterangan ukuran kalau ada, mis. lensa custom)
+    $namaLensaMata = fn ($d) => $d
+        ? trim(($d->barang->merk ?? '') . ' ' . ($d->barang->kode_model ?? '') . ($d->keterangan ? ' — ' . $d->keterangan : ''))
+        : null;
+
     $userLogin = auth()->user();
 @endphp
 
@@ -163,11 +168,22 @@
                 }
                 $punyaUkuran = $ada['od'] || $ada['os'];
 
+                // Lensa per mata (hanya ada kalau pesanan dibuat dengan mode "dari nota")
+                $lensaPerMata = [];
+                if ($p->lensaOd) { $lensaPerMata[] = 'OD: ' . $namaLensaMata($p->lensaOd); }
+                if ($p->lensaOs) { $lensaPerMata[] = 'OS: ' . $namaLensaMata($p->lensaOs); }
+
+                if (! $p->lensa_id) {
+                    $teksLensa = 'Lensa lama milik pelanggan';
+                } else {
+                    $teksLensa = $lensaPerMata ? implode(' · ', $lensaPerMata) : null;
+                }
+
                 $resep = [
                     'sumber' => $p->refraksi
                         ? 'acuan refraksi ' . $p->refraksi->tanggal_periksa->format('d/m/Y')
                         : 'diinput manual',
-                    'lensa'  => $p->lensa_id ? null : 'Lensa lama milik pelanggan',
+                    'lensa'  => $teksLensa,
                     'pd'     => $num($p->pd_total),
                     'od'     => ['sph' => $fmt($p->od_sphere), 'cyl' => $fmt($p->od_cylinder), 'axis' => $p->od_axis ?? '-', 'add' => $num($p->od_add), 'pd' => $num($p->od_mono_pd)],
                     'os'     => ['sph' => $fmt($p->os_sphere), 'cyl' => $fmt($p->os_cylinder), 'axis' => $p->os_axis ?? '-', 'add' => $num($p->os_add), 'pd' => $num($p->os_mono_pd)],
@@ -198,7 +214,13 @@
                     <div class="mb-1">{{ $namaBarang($p->frame) ?? 'Bawaan pelanggan' }}</div>
                     <span class="tag-lensa">Lensa :</span>
                     <div>
-                        @if ($p->lensa)
+                        @if ($p->lensa && $lensaPerMata)
+                            @foreach ([['OD', $p->lensaOd], ['OS', $p->lensaOs]] as [$mata, $det])
+                                @if ($det)
+                                    <div>{{ $mata }}: {{ $namaLensaMata($det) }}</div>
+                                @endif
+                            @endforeach
+                        @elseif ($p->lensa)
                             {{ $namaBarang($p->lensa) }} <span class="tgl-kecil">x {{ $p->jumlah_lensa }} biji</span>
                         @else
                             Lensa lama pelanggan
@@ -359,13 +381,18 @@
                                 @php
                                     $detailFrame = $n->detail->first(fn ($d) => strtolower((string) $d->barang->jenis) === 'frame');
                                     $detailLensa = $n->detail->filter(fn ($d) => strtolower((string) $d->barang->jenis) === 'lensa');
+                                    // Ringkasan semua baris lensa, mis. "Lensa A LN-001 x 1, Lensa B LN-002 x 1"
+                                    $ringkasLensa = $detailLensa
+                                        ->map(fn ($d) => $namaBarang($d->barang) . ' x ' . (int) $d->jumlah)
+                                        ->implode(', ');
                                 @endphp
                                 <option value="{{ $n->id }}"
                                         data-customer="{{ $n->customer_id }}"
                                         data-pelanggan="{{ $n->customer->nama }}"
                                         data-frame="{{ $detailFrame ? $namaBarang($detailFrame->barang) : '' }}"
-                                        data-lensa="{{ $detailLensa->isNotEmpty() ? $namaBarang($detailLensa->first()->barang) : '' }}"
+                                        data-lensa="{{ $ringkasLensa }}"
                                         data-jumlah="{{ (int) $detailLensa->sum('jumlah') }}"
+                                        data-unit="{{ json_encode($unitPerNota[$n->id] ?? []) }}"
                                         @selected((string) old('penjualan_id') === (string) $n->id)>
                                     {{ $n->nomor_nota }} — {{ $n->customer->nama }} ({{ $n->tanggal->format('d/m/Y') }})
                                 </option>
@@ -533,9 +560,9 @@
         const baris = [
             'Pelanggan: ' + opt.dataset.pelanggan,
             'Frame: ' + (opt.dataset.frame || 'bawaan pelanggan'),
-            'Lensa: ' + (opt.dataset.lensa ? opt.dataset.lensa + ' x ' + jumlah + ' biji' : 'lensa lama pelanggan'),
+            'Lensa: ' + (opt.dataset.lensa ? opt.dataset.lensa + ' (total ' + jumlah + ' biji)' : 'lensa lama pelanggan'),
             opt.dataset.lensa
-                ? 'Isi ukuran sesuai jumlah lensa: 1 biji = satu sisi mata, 2 biji = OD dan OS.'
+                ? 'Isi ukuran sesuai jumlah lensa: 1 biji = satu sisi mata, 2 biji = OD dan OS. Pilih "Ambil dari nota pembelian" untuk menentukan lensa tiap mata.'
                 : 'Lensa lama: ukuran boleh dikosongkan.'
         ];
         baris.forEach(function (t) {
@@ -553,11 +580,19 @@
         if (typeof window.psnGantiCustomer === 'function') {
             window.psnGantiCustomer(opt.dataset.customer, lama);
         }
+
+        // Unit lensa (per biji) pada nota ini, untuk pilihan lensa mata kanan/kiri
+        let unit = [];
+        try { unit = JSON.parse(opt.dataset.unit || '[]'); } catch (e) { unit = []; }
+        if (typeof window.psnGantiNota === 'function') {
+            window.psnGantiNota(unit);
+        }
     }
 
     if (selNota) {
         selNota.addEventListener('change', tampilNota);
-        tampilNota();
+        // Tunggu semua script selesai dimuat (script form pesanan dimuat setelah script ini)
+        document.addEventListener('DOMContentLoaded', tampilNota);
     }
 
     // Buka lagi modal kalau validasi gagal
