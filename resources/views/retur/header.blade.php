@@ -57,11 +57,9 @@
 </div>
 
 <nav class="rt-tabs">
-    @if ($isOwnerHeader)
-        <a href="{{ route('retur.supplier') }}" class="rt-tab {{ $aktif === 'supplier' ? 'aktif' : '' }}">
-            <i class="bi bi-box-arrow-up"></i> Retur ke Supplier
-        </a>
-    @endif
+    <a href="{{ route('retur.supplier') }}" class="rt-tab {{ $aktif === 'supplier' ? 'aktif' : '' }}">
+        <i class="bi bi-box-arrow-up"></i> Retur ke Supplier
+    </a>
     <a href="{{ route('retur.customer') }}" class="rt-tab {{ $aktif === 'customer' ? 'aktif' : '' }}">
         <i class="bi bi-person-x"></i> Retur dari Customer
     </a>

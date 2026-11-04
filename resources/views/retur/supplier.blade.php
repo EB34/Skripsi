@@ -35,10 +35,16 @@
 @endpush
 
 @section('content')
+@php
+    /** @var \App\Models\User $user */
+    $user    = auth()->user();
+    $isOwner = $user->isOwner();
+@endphp
+
 <div class="container-fluid">
     @include('retur.header', ['aktif' => 'supplier'])
 
-    @if (($hitung['diajukan'] ?? 0) > 0)
+    @if ($isOwner && ($hitung['diajukan'] ?? 0) > 0)
         <div class="rt-banner">
             <i class="bi bi-exclamation-triangle"></i>
             Ada {{ $hitung['diajukan'] }} retur menunggu validasi Owner.
@@ -100,7 +106,8 @@
                         <td><span class="rt-status {{ $r->status }}">{{ $r->status_label }}</span></td>
                         <td>
                             <div class="d-flex flex-wrap gap-1 justify-content-center">
-                                @if ($r->status === 'diajukan')
+                                {{-- Validasi dan tandai selesai: hanya Owner --}}
+                                @if ($isOwner && $r->status === 'diajukan')
                                     <form method="POST" action="{{ route('retur.supplier.kirim', $r->id) }}"
                                           onsubmit="return confirm('Validasi retur ini dan terbitkan surat jalan?')">
                                         @csrf
@@ -108,6 +115,7 @@
                                     </form>
                                 @endif
 
+                                {{-- Cetak: Owner dan Petugas --}}
                                 <a href="{{ route('retur.supplier.nota', $r->id) }}" target="_blank" class="rt-btn abu">
                                     <i class="bi bi-printer"></i> Nota
                                 </a>
@@ -118,7 +126,7 @@
                                     </a>
                                 @endif
 
-                                @if ($r->status === 'dikirim')
+                                @if ($isOwner && $r->status === 'dikirim')
                                     <form method="POST" action="{{ route('retur.supplier.selesai', $r->id) }}"
                                           onsubmit="return confirm('Tandai retur ini selesai (supplier sudah menerima)?')">
                                         @csrf
