@@ -24,6 +24,20 @@
     .aksi-write { background: #ea8a8a; border-color: #d65f5f; color: #5a0f0f; }
     .aksi-write:hover { background: #e27373; }
     .selesai { color: #1f9d4a; font-weight: 600; }
+
+    /* Panel pencarian (sama dengan tab Riwayat Mutasi Stok) */
+    .panel-filter {
+        display: flex; align-items: center; gap: 16px;
+        background: #efefef;
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 16px;
+    }
+    .btn-reset {
+        font-size: .78rem; color: #555; white-space: nowrap;
+        text-decoration: none;
+    }
+    .btn-reset:hover { color: #000; text-decoration: underline; }
 </style>
 @endpush
 
@@ -43,6 +57,18 @@
             <i class="bi bi-plus-lg"></i> Lapor Barang Rusak
         </button>
     </div>
+
+    {{-- Pencarian: SKU, nama barang, merk, alasan kerusakan, atau nama pelapor --}}
+    <form method="GET" action="{{ route('stok.rusak') }}" class="panel-filter">
+        <div class="search-box">
+            <i class="bi bi-search"></i>
+            <input type="text" name="cari" value="{{ request('cari') }}"
+                   placeholder="Cari SKU, nama barang, alasan kerusakan, atau pelapor">
+        </div>
+        @if(request('cari'))
+            <a href="{{ route('stok.rusak') }}" class="btn-reset">Reset</a>
+        @endif
+    </form>
 
     <div class="tabel-mockup">
         <div class="table-responsive">
@@ -94,7 +120,15 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="text-muted py-4">Belum ada laporan barang rusak.</td></tr>
+                    <tr>
+                        <td colspan="7" class="text-muted py-4">
+                            @if(request('cari'))
+                                Tidak ada laporan yang cocok dengan "{{ request('cari') }}".
+                            @else
+                                Belum ada laporan barang rusak.
+                            @endif
+                        </td>
+                    </tr>
                 @endforelse
                 </tbody>
             </table>

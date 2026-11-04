@@ -30,12 +30,38 @@
         text-decoration: none;
     }
     .btn-restock:hover { background: #c9c9c9; color: #000; }
+
+    /* Panel pencarian (sama dengan tab Riwayat Mutasi Stok) */
+    .panel-filter {
+        display: flex; align-items: center; gap: 16px;
+        background: #efefef;
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 16px;
+    }
+    .btn-reset {
+        font-size: .78rem; color: #555; white-space: nowrap;
+        text-decoration: none;
+    }
+    .btn-reset:hover { color: #000; text-decoration: underline; }
 </style>
 @endpush
 
 @section('content')
 <div class="container-fluid">
     @include('stok.header', ['aktif' => 'monitoring'])
+
+    {{-- Pencarian: kode SKU, merk, nama barang, atau ukuran SPH --}}
+    <form method="GET" action="{{ route('stok.index') }}" class="panel-filter">
+        <div class="search-box">
+            <i class="bi bi-search"></i>
+            <input type="text" name="cari" value="{{ request('cari') }}"
+                   placeholder="Cari SKU, nama barang, merk, atau ukuran SPH">
+        </div>
+        @if(request('cari'))
+            <a href="{{ route('stok.index') }}" class="btn-reset">Reset</a>
+        @endif
+    </form>
 
     @if($jumlahMenipis > 0)
         <div class="banner-menipis">
@@ -106,7 +132,15 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="8" class="text-muted py-4">Belum ada data barang.</td></tr>
+                    <tr>
+                        <td colspan="8" class="text-muted py-4">
+                            @if(request('cari'))
+                                Tidak ada barang yang cocok dengan "{{ request('cari') }}".
+                            @else
+                                Belum ada data barang.
+                            @endif
+                        </td>
+                    </tr>
                 @endforelse
                 </tbody>
             </table>
