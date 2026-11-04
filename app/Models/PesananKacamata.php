@@ -36,7 +36,13 @@ class PesananKacamata extends Model
     public function petugas()   { return $this->belongsTo(User::class, 'petugas_id'); }
     public function pencatat()  { return $this->belongsTo(User::class, 'dibuat_oleh'); }
     public function pembatal()  { return $this->belongsTo(User::class, 'dibatalkan_oleh'); }
-    public function logNotifikasi() { return $this->hasMany(LogNotifikasi::class, 'pesanan_id'); } // dipakai modul WhatsApp nanti
+
+    // Log notifikasi pesanan ini. Tabel log_notifikasi memakai referensi_tipe + referensi_id (bukan pesanan_id).
+    public function logNotifikasi()
+    {
+        return $this->hasMany(LogNotifikasi::class, 'referensi_id')
+            ->where('referensi_tipe', 'pesanan');
+    }
 
     // Pesanan aktif = belum selesai dan tidak dibatalkan (dipakai pil bar atas)
     public function scopeAktif($query)

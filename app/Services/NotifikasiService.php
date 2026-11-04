@@ -2,7 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\Customer;
 use App\Models\LogNotifikasi;
+use App\Models\PesananKacamata;
+use App\Models\TemplateNotifikasi;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Throwable;
@@ -34,6 +37,53 @@ class NotifikasiService
         ]);
 
         return $this->proses($log);
+    }
+
+    /**
+     * Notifikasi "kacamata siap diambil" untuk satu pesanan.
+     * Template dipilih dari sisa bayar nota: lunas atau masih ada sisa.
+     * Mengembalikan null kalau tidak perlu dikirim (sudah pernah terkirim, atau data pesanan tidak lengkap).
+     */
+    public function kirimSiapDiambil(PesananKacamata $pesanan): ?LogNotifikasi
+    {
+        // Pencegah kirim ganda: pesanan ini sudah punya notifikasi siap_diambil yang terkirim
+        $sudahTerkirim = LogNotifikasi::where('jenis', 'siap_diambil')
+            ->where('referensi_tipe', 'pesanan')
+            ->where('referensi_id', $pesanan->id)
+            ->where('status', 'terkirim')
+            ->exists();
+
+        if ($sudahTerkirim) {
+            return null;
+        }
+
+        $pesanan->loadMissing(['customer', 'penjualan']);
+        $customer = $pesanan->customer;
+        $nota = $pesanan->penjualan;
+
+        if (! $customer || ! $nota) {
+            return null;
+        }
+
+        $sisa = $nota->sisa_bayar;
+        $kode = $sisa > 0 ? 'siap_diambil_sisa' : 'siap_diambil_lunas';
+
+        $pesan = TemplateNotifikasi::render($kode, [
+            'nama' => $customer->nama,
+            'nomor_pesanan' => $pesanan->nomor_pesanan,
+            'nomor_nota' => $nota->nomor_nota,
+            'jumlah_kacamata' => 1, // satu pesanan = satu frame = satu kacamata
+            'sisa_bayar' => number_format($sisa, 0, ',', '.'),
+        ]);
+
+        return $this->kirim(
+            (string) $customer->{Customer::KOLOM_WA},
+            $pesan,
+            'siap_diambil',
+            (int) $customer->id,
+            'pesanan',
+            (int) $pesanan->id
+        );
     }
 
     public function kirimUlang(LogNotifikasi $log): LogNotifikasi

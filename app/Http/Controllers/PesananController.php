@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\Penjualan;
 use App\Models\PesananKacamata;
+use App\Services\NotifikasiService;
 use App\Services\PesananService;
 use App\Services\StokPesananService;
 use Illuminate\Http\Request;
@@ -13,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use RuntimeException;
+use Throwable;
 
 class PesananController extends Controller
 {
@@ -153,8 +155,12 @@ class PesananController extends Controller
     /**
      * Dikerjakan -> Siap Diambil. Hanya petugas yang mengerjakan (atau Owner).
      * Status "Selesai" tidak lewat sini, tetapi lewat selesaikan() karena disertai pelunasan.
+     *
+     * Notifikasi WhatsApp dikirim SETELAH transaksi database selesai, supaya:
+     * (1) kunci baris tidak tertahan selama menunggu gateway, dan
+     * (2) kegagalan WhatsApp tidak membatalkan perubahan status.
      */
-    public function ubahStatus(Request $request, PesananKacamata $pesanan)
+    public function ubahStatus(Request $request, PesananKacamata $pesanan, NotifikasiService $notifikasi)
     {
         if ($request->input('status') !== 'siap_diambil') {
             return back()->with('error', 'Perubahan status tidak valid.');
@@ -175,14 +181,28 @@ class PesananController extends Controller
                 }
 
                 $p->update(['status' => 'siap_diambil', 'siap_diambil_pada' => now()]);
-
-                // TODO modul Notifikasi WhatsApp: kirim pesan "kacamata siap diambil" ke pelanggan di sini
             });
         } catch (RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', "Pesanan {$pesanan->nomor_pesanan} diubah menjadi Siap Diambil.");
+        $pesan = "Pesanan {$pesanan->nomor_pesanan} diubah menjadi Siap Diambil.";
+
+        // Status sudah tersimpan. Apa pun yang terjadi pada notifikasi tidak boleh membatalkannya.
+        try {
+            $log = $notifikasi->kirimSiapDiambil(PesananKacamata::findOrFail($pesanan->id));
+
+            if ($log) {
+                $pesan .= $log->status === 'terkirim'
+                    ? ' Notifikasi WhatsApp terkirim ke pelanggan.'
+                    : ' Notifikasi WhatsApp belum terkirim (status: ' . $log->status . '), lihat Log Notifikasi.';
+            }
+        } catch (Throwable $e) {
+            report($e);
+            $pesan .= ' Notifikasi WhatsApp gagal diproses, lihat storage/logs/laravel.log.';
+        }
+
+        return back()->with('success', $pesan);
     }
 
     /**
