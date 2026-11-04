@@ -6,25 +6,28 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('log_notifikasi', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('pesanan_id')->constrained('pesanan_kacamata')->cascadeOnDelete();
-            $table->string('no_tujuan', 20);
-            $table->text('isi_pesan');
-            $table->string('status_kirim')->default('menunggu'); // menunggu / berhasil / gagal
-            $table->dateTime('waktu')->nullable();
+            $table->unsignedBigInteger('customer_id')->nullable()->index();
+            $table->string('jenis', 30)->default('manual'); // siap_diambil, manual, dst.
+            $table->string('tujuan', 20);                   // format 62812...
+            $table->text('pesan');
+            $table->enum('status', ['menunggu', 'terkirim', 'gagal'])->default('menunggu');
+            $table->unsignedTinyInteger('percobaan')->default(0);
+            $table->text('respons')->nullable();            // pesan error / balasan gateway
+            $table->string('referensi_tipe', 30)->nullable(); // contoh: pesanan
+            $table->unsignedBigInteger('referensi_id')->nullable();
+            $table->unsignedBigInteger('dibuat_oleh')->nullable();
+            $table->timestamp('dikirim_pada')->nullable();
             $table->timestamps();
+
+            $table->index(['referensi_tipe', 'referensi_id']);
+            $table->index('status');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('log_notifikasi');

@@ -15,6 +15,7 @@ use App\Http\Controllers\KerugianController;
 use App\Http\Controllers\ReturSupplierController;
 use App\Http\Controllers\ReturCustomerController;
 use App\Http\Controllers\KesalahanTokoController;
+use App\Http\Controllers\LogNotifikasiController;
 
 // Route::get('/', function () {
 //     return view('welcome');
@@ -65,6 +66,10 @@ Route::middleware('auth')->group(function () {
     Route::patch('/pesanan/{pesanan}/status', [PesananController::class, 'ubahStatus'])->name('pesanan.status');
     Route::post('/pesanan/{pesanan}/selesai', [PesananController::class, 'selesaikan'])->name('pesanan.selesai');
     Route::post('/pesanan/{pesanan}/batal', [PesananController::class, 'batalkan'])->name('pesanan.batal');
+
+    // Log notifikasi WhatsApp (Owner dan Petugas)
+    Route::get('/notifikasi', [LogNotifikasiController::class, 'index'])->name('notifikasi.index');
+    Route::post('/notifikasi/{log}/kirim-ulang', [LogNotifikasiController::class, 'kirimUlang'])->whereNumber('log')->name('notifikasi.kirim-ulang');
 
     // Modul Retur: tab untuk Owner dan Petugas (Petugas mencatat keluhan dan kejadian)
     Route::get('/retur/customer', [ReturCustomerController::class, 'index'])->name('retur.customer');

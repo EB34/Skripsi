@@ -7,7 +7,22 @@ use Illuminate\Database\Eloquent\Model;
 class LogNotifikasi extends Model
 {
     protected $table = 'log_notifikasi';
-    protected $guarded = [];
 
-    public function pesanan() { return $this->belongsTo(PesananKacamata::class, 'pesanan_id'); }
+    protected $fillable = [
+        'customer_id', 'jenis', 'tujuan', 'pesan', 'status', 'percobaan',
+        'respons', 'referensi_tipe', 'referensi_id', 'dibuat_oleh', 'dikirim_pada',
+    ];
+
+    protected $casts = [
+        'dikirim_pada' => 'datetime',
+    ];
+
+    public function getKelasStatusAttribute(): string
+    {
+        return match ($this->status) {
+            'terkirim' => 'bg-success',
+            'gagal' => 'bg-danger',
+            default => 'bg-secondary',
+        };
+    }
 }

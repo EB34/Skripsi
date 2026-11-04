@@ -265,7 +265,7 @@
             ['Modul Retur',         'bi-arrow-left-right', $isOwner ? 'retur.supplier' : 'retur.customer', 'retur.*'],
             ...($isOwner ? [['Kerugian Operasional', 'bi-exclamation-diamond', 'kerugian.index', 'kerugian.*']] : []),
             ['Laporan Laba Rugi',   'bi-graph-up',        null,             null],
-            ['Notifikasi Whatsapp', 'bi-whatsapp',        null,             null],
+            ['Notifikasi Whatsapp', 'bi-whatsapp',        'notifikasi.index',             'notifikasi.*'],
         ];
     @endphp
 
