@@ -81,13 +81,6 @@
     }
     .lr-note ul { margin: 6px 0 0; padding-left: 18px; }
     .lr-note li { margin-bottom: 4px; }
-
-    /* Cetak: sembunyikan bilah atas, sidebar, dan kontrol */
-    @media print {
-        .topbar, .sidebar, .no-print { display: none !important; }
-        .content { padding: 0 !important; }
-        .lr-card, .lr-sum { box-shadow: none; border: 1px solid #ddd; }
-    }
 </style>
 @endpush
 
@@ -130,13 +123,14 @@
             <h1 class="lr-title">Laporan Laba Rugi <small>(dalam rupiah)</small></h1>
             <div class="lr-sub">Solo Optik</div>
         </div>
-        <button type="button" class="btn btn-primary btn-sm no-print" onclick="window.print()">
-            <i class="bi bi-printer"></i> Cetak Laporan
-        </button>
+        <a href="{{ route('laporan.labarugi.pdf', ['dari' => $dariStr, 'sampai' => $sampaiStr]) }}"
+           class="btn btn-primary btn-sm">
+            <i class="bi bi-file-earmark-pdf"></i> Ekspor PDF
+        </a>
     </div>
 
     {{-- Filter periode --}}
-    <form method="GET" action="{{ route('laporan.labarugi') }}" class="lr-filter no-print">
+    <form method="GET" action="{{ route('laporan.labarugi') }}" class="lr-filter">
         <div class="lr-range">
             <i class="bi bi-calendar3"></i>
             <input type="date" name="dari" value="{{ $dariStr }}">

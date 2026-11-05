@@ -5,13 +5,45 @@ namespace App\Http\Controllers;
 use App\Models\KerugianOperasional;
 use App\Models\Penjualan;
 use App\Models\ReturCustomer;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 class LaporanController extends Controller
 {
     /** Laporan Laba Rugi per periode. Hanya Owner (dijaga middleware role:owner di routes). */
     public function labaRugi(Request $request)
+    {
+        [$dari, $sampai] = $this->periode($request);
+
+        return view('laporan.labarugi', [
+            'dari'   => $dari,
+            'sampai' => $sampai,
+        ] + $this->hitung($dari, $sampai));
+    }
+
+    /** Unduh Laporan Laba Rugi sebagai PDF, untuk periode yang sama dengan yang tampil di layar. */
+    public function exportPdf(Request $request)
+    {
+        [$dari, $sampai] = $this->periode($request);
+
+        $data = [
+            'dari'        => $dari,
+            'sampai'      => $sampai,
+            'dicetakOleh' => Auth::user()->nama,
+            'dicetakPada' => now(),
+        ] + $this->hitung($dari, $sampai);
+
+        $namaFile = 'Laporan-Laba-Rugi_' . $dari->format('Y-m-d') . '_sd_' . $sampai->format('Y-m-d') . '.pdf';
+
+        return Pdf::loadView('laporan.labarugipdf', $data)
+            ->setPaper('a4', 'portrait')
+            ->download($namaFile);
+    }
+
+    /** Membaca dan memvalidasi periode dari request. Default: 1 bulan berjalan. */
+    private function periode(Request $request): array
     {
         $aturan = [
             'dari'   => ['nullable', 'date'],
@@ -28,13 +60,18 @@ class LaporanController extends Controller
             'sampai.after_or_equal' => 'Tanggal akhir tidak boleh sebelum tanggal awal.',
         ]);
 
-        // Default: 1 bulan berjalan
         $dari   = Carbon::parse($data['dari'] ?? now()->startOfMonth()->toDateString())->startOfDay();
         $sampai = Carbon::parse($data['sampai'] ?? now()->toDateString())->endOfDay();
         if ($sampai->lt($dari)) {
             $sampai = $dari->copy()->endOfDay();
         }
 
+        return [$dari, $sampai];
+    }
+
+    /** Semua perhitungan laba rugi untuk satu periode. Dipakai oleh halaman web dan PDF. */
+    private function hitung(Carbon $dari, Carbon $sampai): array
+    {
         // Baris kosong untuk rincian per hari
         $kosong = ['nota' => 0, 'pendapatan' => 0.0, 'refund' => 0.0, 'hpp' => 0.0, 'kerugian' => 0.0];
         $harian = [];
@@ -107,9 +144,9 @@ class LaporanController extends Controller
             ->get();
 
         $refundTotal = 0.0;
-        foreach ($refundList as $r) {
-            $refundTotal += (float) $r->jumlah_refund;
-            $tambah($r->diproses_pada->toDateString(), 'refund', (float) $r->jumlah_refund);
+        foreach ($refundList as $rt) {
+            $refundTotal += (float) $rt->jumlah_refund;
+            $tambah($rt->diproses_pada->toDateString(), 'refund', (float) $rt->jumlah_refund);
         }
 
         // ---------- 3. Kerugian operasional ----------
@@ -130,9 +167,7 @@ class LaporanController extends Controller
         $labaKotor        = $pendapatanBersih - $hppTotal;
         $labaBersih       = $labaKotor - $kerugianTotal;
 
-        return view('laporan.labarugi', [
-            'dari'          => $dari,
-            'sampai'        => $sampai,
+        return [
             'harian'        => $harian,
             'kerugianJenis' => $kerugianJenis,
             'berjalan'      => $berjalan,
@@ -149,6 +184,6 @@ class LaporanController extends Controller
                 'nota_selesai'      => $notaSelesai,
                 'nota_batal'        => $notaBatal,
             ],
-        ]);
+        ];
     }
 }

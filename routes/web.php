@@ -91,6 +91,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:owner')->group(function () {
         // Laporan Laba Rugi: angka keuangan toko hanya untuk Owner
         Route::get('/laporan/labarugi', [LaporanController::class, 'labaRugi'])->name('laporan.labarugi');
+        Route::get('/laporan/labarugi/pdf', [LaporanController::class, 'exportPdf'])->name('laporan.labarugi.pdf');   // BARU
 
         // Keputusan barang rusak (retur ke supplier atau write off) = wewenang Owner
         Route::post('/stok/rusak/{barangRusak}/putuskan', [StokController::class, 'putuskanRusak'])->name('stok.rusak.putuskan');
