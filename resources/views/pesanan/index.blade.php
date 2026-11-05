@@ -80,6 +80,18 @@
     }
     .teks-hangus { color: #a31515; }
     .ringkas-nota { background: #efefef; border-radius: 8px; padding: 10px 12px; font-size: .78rem; }
+     /* Jdiin flex container spy bs di scroll */
+    #modalPesanan .modal-content > form {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: 100%;
+    }
+    #modalPesanan .modal-body {
+        overflow-y: auto;
+        min-height: 0;
+    }
 </style>
 @endpush
 
