@@ -229,7 +229,7 @@
     <div class="dropdown">
         <button class="user-card dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
             <div class="nama">{{ auth()->user()->nama }}</div>
-            <div class="peran">{{ auth()->user()->isOwner() ? 'Owner Bisnis' : 'Petugas' }}</div>
+            <div class="peran">{{ auth()->user()->role_label }}</div>
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
             <li>

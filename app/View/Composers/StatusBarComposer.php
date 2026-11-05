@@ -3,6 +3,7 @@
 namespace App\View\Composers;
 
 use App\Models\Barang;
+use App\Models\PesananKacamata;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
@@ -17,17 +18,7 @@ class StatusBarComposer
 
         $view->with([
             'jumlahStokMenipis'  => Barang::menipis()->count(),
-            'jumlahPesananAktif' => $this->hitungPesananAktif(),
+            'jumlahPesananAktif' => PesananKacamata::aktif()->count(),
         ]);
-    }
-
-    /**
-     * Modul Pesanan Kacamata belum dibuat, jadi sementara 0.
-     * Setelah tabel pesanan ada, isi dengan hitungan pesanan yang belum selesai/batal, misalnya:
-     * return PesananKacamata::whereNotIn('status', ['selesai', 'batal'])->count();
-     */
-    private function hitungPesananAktif(): int
-    {
-        return 0;
     }
 }

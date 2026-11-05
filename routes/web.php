@@ -18,6 +18,7 @@ use App\Http\Controllers\ReturCustomerController;
 use App\Http\Controllers\KesalahanTokoController;
 use App\Http\Controllers\LogNotifikasiController;
 use App\Http\Controllers\TemplateNotifikasiController;
+use App\Http\Controllers\DashboardController;
 
 // Route::get('/', function () {
 //     return view('welcome');
@@ -32,7 +33,7 @@ Route::middleware('guest')->group(function () {
 
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
-    Route::get('/dashboard', fn () => view('dashboard'))->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::resource('supplier', SupplierController::class)->except('show','create','edit');
     Route::resource('customer', CustomerController::class)->except('show');
     Route::post('customer/{customer}/refraksi', [RefraksiController::class, 'store'])->name('refraksi.store');
