@@ -5,9 +5,12 @@ namespace App\Services;
 use App\Models\Barang;
 use App\Models\BarangRusak;
 use App\Models\DetailPembelian;
+use App\Models\DetailReturSupplier;
 use App\Models\KerugianOperasional;
 use App\Models\Lokasi;
 use App\Models\MutasiStok;
+use App\Models\Pembelian;
+use App\Models\ReturSupplier;
 use App\Models\StokLokasi;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -239,17 +242,28 @@ class StokService
     }
 
     /**
-     * Keputusan tindak lanjut barang rusak: 'retur_supplier' atau 'write_off'.
-     * Mengurangi stok_rusak. Stok layak jual tidak berubah, jadi mutasi dicatat dengan jumlah 0.
-     * Write off dicatat sebagai kerugian operasional senilai nilai_hpp laporan.
+     * Keputusan tindak lanjut barang rusak oleh Owner: 'retur_supplier' atau 'write_off'.
+     *
+     * - retur_supplier: membuat ReturSupplier (status diajukan) dan DetailReturSupplier
+     *   dengan PO asal $pembelianId dan alasan $alasanRetur. Menunggu validasi Owner
+     *   di tab Retur ke Supplier, yang menerbitkan surat jalan.
+     * - write_off: dicatat sebagai kerugian operasional senilai nilai_hpp laporan.
+     *
+     * Stok layak jual tidak berubah di kedua kasus, karena sudah dikurangi saat laporRusak().
+     * Mengembalikan ReturSupplier yang dibuat, atau null untuk write off.
      */
-    public function putuskanRusak(int $laporanId, string $keputusan, ?int $userId = null): void
-    {
+    public function putuskanRusak(
+        int $laporanId,
+        string $keputusan,
+        ?int $userId = null,
+        ?int $pembelianId = null,
+        ?string $alasanRetur = null
+    ): ?ReturSupplier {
         if (!in_array($keputusan, ['retur_supplier', 'write_off'], true)) {
             throw new RuntimeException('Keputusan tidak valid.');
         }
 
-        DB::transaction(function () use ($laporanId, $keputusan, $userId) {
+        return DB::transaction(function () use ($laporanId, $keputusan, $userId, $pembelianId, $alasanRetur) {
             $laporan = BarangRusak::lockForUpdate()->findOrFail($laporanId);
 
             if ($laporan->status !== 'menunggu_keputusan') {
@@ -262,15 +276,27 @@ class StokService
                 throw new RuntimeException("Data stok rusak {$barang->kode_model} tidak konsisten dengan laporan.");
             }
 
+            $retur = null;
+            $dataLaporan = [];
+
+            if ($keputusan === 'retur_supplier') {
+                $retur = $this->buatReturSupplier($barang, (int) $laporan->jumlah, $pembelianId, $alasanRetur);
+                $dataLaporan['retur_supplier_id'] = $retur->id;
+            }
+
             $barang->stok_rusak -= $laporan->jumlah;
             $barang->save();
 
-            $laporan->update([
+            $laporan->update(array_merge($dataLaporan, [
                 'status'          => $keputusan,
                 'diputuskan_pada' => now(),
-            ]);
+            ]));
 
             $label = $keputusan === 'write_off' ? 'Write off' : 'Retur ke supplier';
+            $keterangan = "{$label} {$laporan->jumlah} pcs ({$laporan->alasan})";
+            if ($retur) {
+                $keterangan .= ", {$retur->nomor_retur}";
+            }
 
             $this->catatMutasi(
                 $barang,
@@ -278,7 +304,7 @@ class StokService
                 0,
                 'barang_rusak',
                 $laporan->id,
-                "{$label} {$laporan->jumlah} pcs ({$laporan->alasan})",
+                $keterangan,
                 $userId
             );
 
@@ -295,7 +321,58 @@ class StokService
                     $userId
                 );
             }
+
+            return $retur;
         });
+    }
+
+    /**
+     * Membuat retur ke supplier (header dan satu baris detail) untuk barang rusak yang diputuskan retur.
+     * Memastikan PO yang dipilih memang memuat barang tersebut, supaya surat jalan tidak salah PO.
+     */
+    protected function buatReturSupplier(
+        Barang $barang,
+        int $jumlah,
+        ?int $pembelianId,
+        ?string $alasanRetur
+    ): ReturSupplier {
+        if (!$pembelianId) {
+            throw new RuntimeException('Pilih PO asal untuk retur ke supplier.');
+        }
+
+        if (!$alasanRetur || !array_key_exists($alasanRetur, ReturSupplier::ALASAN)) {
+            throw new RuntimeException('Alasan retur tidak valid.');
+        }
+
+        $pembelian = Pembelian::find($pembelianId);
+
+        if (!$pembelian) {
+            throw new RuntimeException('PO asal tidak ditemukan.');
+        }
+
+        $memuat = DetailPembelian::where('pembelian_id', $pembelian->id)
+            ->where('barang_id', $barang->id)
+            ->exists();
+
+        if (!$memuat) {
+            throw new RuntimeException("PO {$pembelian->nomor_po} tidak memuat {$barang->kode_model}.");
+        }
+
+        $retur = ReturSupplier::create([
+            'pembelian_id'      => $pembelian->id,
+            'tanggal'           => now()->toDateString(),
+            'status'            => ReturSupplier::STATUS_DIAJUKAN,
+            'nomor_surat_jalan' => null,
+        ]);
+
+        DetailReturSupplier::create([
+            'retur_supplier_id' => $retur->id,
+            'barang_id'         => $barang->id,
+            'jumlah'            => $jumlah,
+            'alasan'            => $alasanRetur,
+        ]);
+
+        return $retur;
     }
 
     /**

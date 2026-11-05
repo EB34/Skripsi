@@ -24,6 +24,41 @@
         padding: 10px 14px; font-size: .78rem;
     }
     .kotak-item { background: #efefef; border-radius: 10px; padding: 14px 18px; margin-bottom: 14px; }
+
+    /* Popup checklist: hanya bagian isi (.modal-body) yang bisa di-scroll,
+       header dan footer tetap terlihat di dalam layar */
+    .modal.modal-checklist {
+        overflow: hidden;
+    }
+        /* Popup checklist: hanya bagian isi (.modal-body) yang bisa di-scroll,
+       header dan footer tetap terlihat di dalam layar */
+    .modal-checklist .modal-dialog {
+        max-height: calc(100vh - 2rem);
+        margin: 1rem auto;
+    }
+    .modal-checklist .modal-content {
+        max-height: calc(100vh - 2rem);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .modal-checklist form {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
+    }
+    .modal-checklist .modal-header,
+    .modal-checklist .modal-footer {
+        flex-shrink: 0;
+    }
+    .modal-checklist .modal-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+    }
+
     .sup-combo { position: relative; }
     .sup-list {
         position: absolute; left: 0; right: 0; top: 100%;
@@ -41,15 +76,15 @@
     .sup-opt:hover, .sup-opt.sorot { background: #fff3b0; }
     #sup-kosong { padding: 10px 12px; font-size: .8rem; color: #888; }
     .sup-tambah {
-    position: sticky; bottom: 0;
-    display: block;
-    background: #fff;
-    border-top: 1px solid #ddd;
-    padding: 9px 12px;
-    font-size: .85rem; font-weight: 600;
-    color: #000; text-decoration: none;
-}
-.sup-tambah:hover { background: #ffe11a; color: #000; }
+        position: sticky; bottom: 0;
+        display: block;
+        background: #fff;
+        border-top: 1px solid #ddd;
+        padding: 9px 12px;
+        font-size: .85rem; font-weight: 600;
+        color: #000; text-decoration: none;
+    }
+    .sup-tambah:hover { background: #ffe11a; color: #000; }
 </style>
 @endpush
 
@@ -174,30 +209,30 @@
                                 <input type="hidden" name="supplier_id" id="sup-id" value="{{ old('supplier_id') }}">
 
                                 <input type="text" id="sup-cari" class="form-control" autocomplete="off"
-                                placeholder="Ketik nama perusahaan atau contact person...">
+                                       placeholder="Ketik nama perusahaan atau contact person...">
 
                                 <div class="sup-list d-none" id="sup-list">
                                     @foreach ($supplier as $s)
                                         @php $namaKontak = $s->kontak->pluck('nama')->implode(', '); @endphp
-                                            <div class="sup-opt" data-id="{{ $s->id }}"
-                                                data-nama="{{ $s->nama_perusahaan }}"
-                                                data-kontak="{{ $namaKontak }}">
-                                                {{ $s->nama_perusahaan }}
-                                        @if ($namaKontak !== '')
-                                            <small>{{ $namaKontak }}</small>
-                                        @endif
+                                        <div class="sup-opt" data-id="{{ $s->id }}"
+                                             data-nama="{{ $s->nama_perusahaan }}"
+                                             data-kontak="{{ $namaKontak }}">
+                                            {{ $s->nama_perusahaan }}
+                                            @if ($namaKontak !== '')
+                                                <small>{{ $namaKontak }}</small>
+                                            @endif
                                         </div>
                                     @endforeach
-                                
-                                <div id="sup-kosong" class="d-none">Supplier tidak ditemukan.</div>
-                                <a href="{{ route('supplier.index') }}" class="sup-tambah">
-                                    <i class="bi bi-plus-lg"></i> Tambah data supplier
-                                </a>
+
+                                    <div id="sup-kosong" class="d-none">Supplier tidak ditemukan.</div>
+                                    <a href="{{ route('supplier.index') }}" class="sup-tambah">
+                                        <i class="bi bi-plus-lg"></i> Tambah data supplier
+                                    </a>
+                                </div>
                             </div>
+                            <div class="form-text text-danger d-none" id="sup-hint">Pilih supplier terlebih dahulu.</div>
                         </div>
-                        
-                        <div class="form-text text-danger d-none" id="sup-hint">Pilih supplier terlebih dahulu.</div>
-                    </div>
+
                         <div class="col-md-3">
                             <label class="form-label">Tanggal Pesanan</label>
                             <input type="date" name="tanggal" value="{{ old('tanggal', now()->toDateString()) }}"
@@ -244,11 +279,12 @@
 {{-- ===== Popup checklist: satu popup per PO yang masih menunggu ===== --}}
 @foreach ($pembelian as $p)
     @if ($p->status === 'menunggu_pengiriman')
-        <div class="modal fade" id="modalTerima{{ $p->id }}" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal fade modal-checklist" id="modalTerima{{ $p->id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
                 <div class="modal-content">
                     <form method="POST" action="{{ route('pembelian.terima', $p) }}"
-                          onsubmit="return confirm('Setelah diverifikasi, hasil penerimaan tidak dapat diubah. Lanjutkan?')">
+                          onsubmit="return confirm('Setelah diverifikasi, hasil penerimaan tidak dapat diubah. Lanjutkan?')"
+                          class="d-flex flex-column h-100">
                         @csrf
 
                         <div class="modal-header">
@@ -413,6 +449,7 @@
         new bootstrap.Modal(document.getElementById('modalBuatPo')).show();
     }
 </script>
+
 <script>
 (function () {
     var combo = document.getElementById('sup-combo');

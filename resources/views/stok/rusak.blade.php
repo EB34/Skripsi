@@ -42,6 +42,11 @@
 @endpush
 
 @section('content')
+@php
+    /** @var \App\Models\User $user */
+    $isOwner = auth()->user()->isOwner();
+@endphp
+
 <div class="container-fluid">
     @include('stok.header', ['aktif' => 'rusak'])
 
@@ -100,20 +105,27 @@
                         <td>{{ $r->pelapor?->nama ?? '-' }}</td>
                         <td>
                             @if($r->status === 'menunggu_keputusan')
-                                <div class="d-flex gap-1 justify-content-center">
-                                    <form method="POST" action="{{ route('stok.rusak.putuskan', $r->id) }}"
-                                          onsubmit="return confirm('Tandai barang ini untuk diretur ke supplier?')">
-                                        @csrf
-                                        <input type="hidden" name="keputusan" value="retur_supplier">
-                                        <button class="aksi-btn aksi-retur">Retur<br>Supplier</button>
-                                    </form>
-                                    <form method="POST" action="{{ route('stok.rusak.putuskan', $r->id) }}"
-                                          onsubmit="return confirm('Write off barang ini? Barang dianggap hilang dari persediaan.')">
-                                        @csrf
-                                        <input type="hidden" name="keputusan" value="write_off">
-                                        <button class="aksi-btn aksi-write">Write<br>Off</button>
-                                    </form>
-                                </div>
+                                @if($isOwner)
+                                    <div class="d-flex gap-1 justify-content-center">
+                                        {{-- Retur: membuka modal untuk memilih PO asal dan alasan --}}
+                                        <button type="button" class="aksi-btn aksi-retur btn-retur"
+                                                data-bs-toggle="modal" data-bs-target="#modalRetur"
+                                                data-action="{{ route('stok.rusak.putuskan', $r->id) }}"
+                                                data-barang-id="{{ $r->barang_id }}"
+                                                data-kode="{{ $r->barang?->kode_model }}">
+                                            Retur<br>Supplier
+                                        </button>
+
+                                        <form method="POST" action="{{ route('stok.rusak.putuskan', $r->id) }}"
+                                              onsubmit="return confirm('Write off barang ini? Barang dianggap hilang dari persediaan.')">
+                                            @csrf
+                                            <input type="hidden" name="keputusan" value="write_off">
+                                            <button class="aksi-btn aksi-write">Write<br>Off</button>
+                                        </form>
+                                    </div>
+                                @else
+                                    <span class="text-muted" style="font-size:.7rem">Menunggu Owner</span>
+                                @endif
                             @else
                                 <span class="selesai"><i class="bi bi-check-circle"></i> Selesai</span>
                             @endif
@@ -138,5 +150,90 @@
     <div class="mt-3">{{ $daftarRusak->links() }}</div>
 </div>
 
+@if($isOwner)
+{{-- ===== Modal: Keputusan Retur ke Supplier ===== --}}
+<div class="modal fade" id="modalRetur" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" id="formRetur" data-po="{{ json_encode($poPerBarang) }}">
+                @csrf
+                <input type="hidden" name="keputusan" value="retur_supplier">
+                <div class="modal-header">
+                    <h5 class="modal-title">Retur ke Supplier</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">Barang: <strong id="returKode">-</strong></p>
+
+                    <label class="form-label">PO asal (supplier)</label>
+                    <select name="pembelian_id" id="returPembelian" class="form-select mb-1" required>
+                        <option value="">Pilih PO asal</option>
+                    </select>
+                    <div id="returKosong" class="form-text text-danger d-none">
+                        Tidak ada PO yang memuat barang ini, jadi retur tidak bisa dibuat.
+                    </div>
+
+                    <label class="form-label mt-3">Alasan retur</label>
+                    <select name="alasan_retur" id="returAlasan" class="form-select mb-3" required>
+                        <option value="">Pilih alasan</option>
+                        @foreach($alasanRetur as $kode => $label)
+                            <option value="{{ $kode }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+
+                    <div class="form-text">
+                        Retur dibuat dengan status diajukan. Owner menerbitkan surat jalan di tab Retur ke Supplier.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary" id="btnRetur">Buat Retur</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
+
 @include('stok.modal_lapor')
 @endsection
+
+@push('scripts')
+<script>
+    (function () {
+        const form = document.getElementById('formRetur');
+        if (!form) return;
+
+        const poPerBarang = JSON.parse(form.dataset.po || '{}');
+
+        const kode      = document.getElementById('returKode');
+        const selectPo  = document.getElementById('returPembelian');
+        const alasan    = document.getElementById('returAlasan');
+        const kosong    = document.getElementById('returKosong');
+        const btnSubmit = document.getElementById('btnRetur');
+
+        document.querySelectorAll('.btn-retur').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                form.action = btn.dataset.action;
+                kode.textContent = btn.dataset.kode || '-';
+
+                // Isi dropdown PO sesuai barang yang dipilih
+                const daftar = poPerBarang[btn.dataset.barangId] || [];
+                selectPo.innerHTML = '<option value="">Pilih PO asal</option>';
+                daftar.forEach(function (p) {
+                    const opsi = document.createElement('option');
+                    opsi.value = p.id;
+                    opsi.textContent = p.label;
+                    selectPo.appendChild(opsi);
+                });
+
+                const adaPo = daftar.length > 0;
+                selectPo.disabled = !adaPo;
+                btnSubmit.disabled = !adaPo;
+                kosong.classList.toggle('d-none', adaPo);
+                alasan.value = '';
+            });
+        });
+    })();
+</script>
+@endpush

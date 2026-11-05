@@ -20,9 +20,13 @@ class ReturSupplier extends Model
         self::STATUS_SELESAI  => 'Selesai',
     ];
 
+    // Alasan retur. Keterangan tambahan per alasan akan ditambahkan nanti.
     public const ALASAN = [
-        'cacat'       => 'Cacat',
-        'salah_kirim' => 'Salah Kirim',
+        'cacat'                 => 'Cacat (dari supplier)',
+        'salah_kirim'           => 'Salah kirim',
+        'rusak_saat_pemasangan' => 'Rusak saat pemasangan',
+        'rusak_saat_pengiriman' => 'Rusak saat pengiriman',
+        'lainnya'               => 'Lainnya',
     ];
 
     public function pembelian() { return $this->belongsTo(Pembelian::class, 'pembelian_id'); }

@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Barang;
 use App\Models\BarangRusak;
+use App\Models\DetailPembelian;
 use App\Models\Lokasi;
 use App\Models\MutasiStok;
 use App\Models\Pembelian;
 use App\Models\Penjualan;
+use App\Models\ReturSupplier;
 use App\Services\StokService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -100,9 +102,31 @@ class StokController extends Controller
             ->orderByDesc('id')
             ->paginate(10);
 
+        // PO asal per barang, untuk dropdown "Retur ke Supplier" di modal keputusan.
+        // Bentuk: [barang_id => [['id' => ..., 'label' => ...], ...]]
+        $barangIds = $daftarRusak->getCollection()->pluck('barang_id')->unique()->values();
+
+        $poPerBarang = DetailPembelian::with('pembelian.supplier')
+            ->whereIn('barang_id', $barangIds)
+            ->whereHas('pembelian')
+            ->get()
+            ->groupBy('barang_id')
+            ->map(fn ($grup) => $grup->pluck('pembelian')
+                ->unique('id')
+                ->values()
+                ->map(fn (Pembelian $p) => [
+                    'id'    => $p->id,
+                    'label' => $p->nomor_po
+                        . ' · ' . ($p->supplier?->nama_perusahaan ?? '-')
+                        . ' · ' . ($p->tanggal?->format('d/m/Y') ?? '-'),
+                ])
+                ->values());
+
         return view('stok.rusak', [
             'daftarRusak' => $daftarRusak,
             'opsiBarang'  => $this->opsiBarang(),
+            'poPerBarang' => $poPerBarang,
+            'alasanRetur' => ReturSupplier::ALASAN,
         ]);
     }
 
@@ -135,21 +159,39 @@ class StokController extends Controller
             ->with('success', 'Laporan barang rusak dicatat. Stok layak jual sudah dikurangi.');
     }
 
+    /** Keputusan Owner: retur ke supplier (wajib PO asal dan alasan) atau write off. */
     public function putuskanRusak(Request $request, BarangRusak $barangRusak, StokService $stokService)
     {
         $data = $request->validate([
-            'keputusan' => ['required', 'in:retur_supplier,write_off'],
+            'keputusan'   => ['required', 'in:retur_supplier,write_off'],
+            'pembelian_id' => ['required_if:keputusan,retur_supplier', 'nullable', 'integer', 'exists:pembelian,id'],
+            'alasan_retur' => [
+                'required_if:keputusan,retur_supplier', 'nullable', 'string',
+                Rule::in(array_keys(ReturSupplier::ALASAN)),
+            ],
+        ], [
+            'keputusan.required'     => 'Keputusan wajib dipilih.',
+            'pembelian_id.required_if' => 'Pilih PO asal untuk retur ke supplier.',
+            'pembelian_id.exists'    => 'PO asal tidak ditemukan.',
+            'alasan_retur.required_if' => 'Pilih alasan retur.',
+            'alasan_retur.in'        => 'Alasan retur tidak valid.',
         ]);
 
         try {
-            $stokService->putuskanRusak($barangRusak->id, $data['keputusan'], Auth::id());
+            $retur = $stokService->putuskanRusak(
+                $barangRusak->id,
+                $data['keputusan'],
+                Auth::id(),
+                isset($data['pembelian_id']) ? (int) $data['pembelian_id'] : null,
+                $data['alasan_retur'] ?? null
+            );
         } catch (RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
 
-        $pesan = $data['keputusan'] === 'write_off'
-            ? 'Barang rusak di-write off.'
-            : 'Barang rusak ditandai retur ke supplier.';
+        $pesan = $retur
+            ? "Retur {$retur->nomor_retur} dibuat dan menunggu validasi Owner di tab Retur ke Supplier."
+            : 'Barang rusak di-write off.';
 
         return redirect()->route('stok.rusak')->with('success', $pesan);
     }
