@@ -12,6 +12,7 @@ use App\Http\Controllers\StokController;
 use App\Http\Controllers\LokasiController;
 use App\Http\Controllers\PesananController;
 use App\Http\Controllers\KerugianController;
+use App\Http\Controllers\LaporanController;
 use App\Http\Controllers\ReturSupplierController;
 use App\Http\Controllers\ReturCustomerController;
 use App\Http\Controllers\KesalahanTokoController;
@@ -88,7 +89,8 @@ Route::middleware('auth')->group(function () {
 
     // Page khusus Owner
     Route::middleware('role:owner')->group(function () {
-        Route::get('/laporan', fn () => 'Halaman laporan (khusus Owner)');
+        // Laporan Laba Rugi: angka keuangan toko hanya untuk Owner
+        Route::get('/laporan/labarugi', [LaporanController::class, 'labaRugi'])->name('laporan.labarugi');
 
         // Keputusan barang rusak (retur ke supplier atau write off) = wewenang Owner
         Route::post('/stok/rusak/{barangRusak}/putuskan', [StokController::class, 'putuskanRusak'])->name('stok.rusak.putuskan');
