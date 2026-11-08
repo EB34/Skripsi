@@ -19,6 +19,9 @@ class Barang extends Model
     public function laporanRusak() { return $this->hasMany(BarangRusak::class, 'barang_id'); }
     public function stokLokasi() { return $this->hasMany(StokLokasi::class, 'barang_id'); }
 
+    // BARU: kategori barang (material frame / tipe lensa / tipe softlens), boleh kosong
+    public function kategori() { return $this->belongsTo(KategoriBarang::class, 'kategori_id'); }
+
     /**
      * Barang yang stoknya mencapai atau di bawah batas minimumnya sendiri (sudah termasuk yang habis).
      * Barang tanpa stok (lensa custom) tidak pernah dihitung.
@@ -68,7 +71,7 @@ class Barang extends Model
         return 'aman';
     }
 
-    /** Label kategori untuk tabel monitoring. */
+    /** Label jenis barang untuk tabel monitoring. */
     public function getKategoriLabelAttribute(): string
     {
         return match ($this->jenis) {

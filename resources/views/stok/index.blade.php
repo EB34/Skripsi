@@ -39,6 +39,10 @@
         padding: 12px;
         margin-bottom: 16px;
     }
+    .select-kategori {
+        height: 38px; border: 0; border-radius: 8px;
+        padding: 0 10px; font-size: .8rem; background: #fff; max-width: 200px;
+    }
     .btn-reset {
         font-size: .78rem; color: #555; white-space: nowrap;
         text-decoration: none;
@@ -48,17 +52,34 @@
 @endpush
 
 @section('content')
+@php
+    $labelKategori = \App\Models\KategoriBarang::LABEL;
+@endphp
 <div class="container-fluid">
     @include('stok.header', ['aktif' => 'monitoring'])
 
-    {{-- Pencarian: kode SKU, merk, nama barang, atau ukuran SPH --}}
+    {{-- Pencarian: kode SKU, merk, nama barang, kategori (material/tipe), atau ukuran SPH. Plus filter kategori. --}}
     <form method="GET" action="{{ route('stok.index') }}" class="panel-filter">
         <div class="search-box">
             <i class="bi bi-search"></i>
             <input type="text" name="cari" value="{{ request('cari') }}"
-                   placeholder="Cari SKU, nama barang, merk, atau ukuran SPH">
+                   placeholder="Cari SKU, nama barang, merk, material/tipe, atau ukuran SPH">
         </div>
-        @if(request('cari'))
+
+        @if ($daftarKategori->isNotEmpty())
+            <select name="kategori" class="select-kategori" onchange="this.form.submit()">
+                <option value="">Semua material/tipe</option>
+                @foreach ($daftarKategori->groupBy('jenis') as $jenisGrup => $grup)
+                    <optgroup label="{{ $labelKategori[$jenisGrup] ?? ucfirst($jenisGrup) }}">
+                        @foreach ($grup as $k)
+                            <option value="{{ $k->id }}" @selected((string) request('kategori') === (string) $k->id)>{{ $k->nama }}</option>
+                        @endforeach
+                    </optgroup>
+                @endforeach
+            </select>
+        @endif
+
+        @if(request('cari') || request('kategori'))
             <a href="{{ route('stok.index') }}" class="btn-reset">Reset</a>
         @endif
     </form>
@@ -78,6 +99,7 @@
                         <th>SKU</th>
                         <th>Nama Barang</th>
                         <th>Kategori</th>
+                        <th>Material/Tipe</th>
                         <th>Stok Fisik</th>
                         <th>Batas Min</th>
                         <th style="min-width: 170px;">Indikator Stok</th>
@@ -102,6 +124,7 @@
                         </td>
                         <td class="fw-bold">{{ ucfirst($b->jenis) }} {{ $b->merk }}</td>
                         <td>{{ $b->kategori_label }}</td>
+                        <td>{{ $b->kategori?->nama ?? '-' }}</td>
                         <td class="fw-bold">{{ $b->stok_tersedia }}</td>
                         <td>{{ $b->stok_minimum }}</td>
                         <td>
@@ -133,7 +156,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" class="text-muted py-4">
+                        <td colspan="9" class="text-muted py-4">
                             @if(request('cari'))
                                 Tidak ada barang yang cocok dengan "{{ request('cari') }}".
                             @else

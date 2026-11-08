@@ -256,6 +256,7 @@
         $menu = [
             ['Dashboard',           'bi-grid-1x2',        'dashboard',      'dashboard'],
             ['Data Barang',         'bi-box-seam',        'barang.index',   'barang.*'],
+            ['Kategori Barang',     'bi-tags',            'kategori.index', 'kategori.*'],
             ['Pengelolaan Stok',    'bi-boxes',           'stok.index',             'stok.*'],
             ['Transaksi Penjualan', 'bi-cart3',           'penjualan.create', 'penjualan.*'],
             ['Pembelian Supplier',  'bi-truck',           'pembelian.index', 'pembelian.*'],

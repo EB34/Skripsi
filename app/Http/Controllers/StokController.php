@@ -15,29 +15,51 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use RuntimeException;
+use App\Models\KategoriBarang;
 
 class StokController extends Controller
 {
     /** Tab 1: Monitoring Stok Real Time. */
-    public function index()
+    public function index(Request $request)
     {
+        $cari = trim((string) $request->input('cari'));
+
         // Barang paling berisiko (stok paling dekat/di bawah batas) tampil paling atas.
         // CAST ke SIGNED wajib: kolom UNSIGNED dikurangi bisa error kalau hasilnya negatif.
         // Lensa custom (tanpa stok) tidak dimonitor karena memang tidak punya stok.
         $daftarBarang = Barang::query()
             ->where('tanpa_stok', false)
-            ->with('stokLokasi.lokasi')
+            ->with(['stokLokasi.lokasi', 'kategori'])
+            ->when($cari !== '', function ($query) use ($cari) {
+                $query->where(function ($w) use ($cari) {
+                    $w->where('kode_model', 'like', "%{$cari}%")
+                      ->orWhere('merk', 'like', "%{$cari}%")
+                      // "Nama barang" di tabel = jenis + merk, misalnya "Lensa Essilor"
+                      ->orWhereRaw("CONCAT(jenis, ' ', merk) like ?", ["%{$cari}%"])
+                      // Nama kategori, misalnya "plastik" atau "photochromic"
+                      ->orWhereHas('kategori', fn ($k) => $k->where('nama', 'like', "%{$cari}%"));
+
+                    // Mengetik angka (misalnya -2.25 atau -2,25) mencari lensa/softlens dengan SPH itu
+                    $angka = str_replace(',', '.', $cari);
+                    if (is_numeric($angka)) {
+                        $w->orWhere('sph', (float) $angka);
+                    }
+                });
+            })
+            ->when($request->input('kategori'), fn ($query, $id) => $query->where('kategori_id', $id))
             ->orderByRaw('CAST(stok_tersedia AS SIGNED) - CAST(stok_minimum AS SIGNED) asc')
             ->orderBy('kode_model')
-            ->paginate(10);
+            ->paginate(10)
+            ->withQueryString();
 
         // Mencapai atau di bawah batas minimum (sudah termasuk yang habis). Sama dengan pil di bar atas.
         $jumlahMenipis = Barang::menipis()->count();
 
         return view('stok.index', [
-            'daftarBarang'  => $daftarBarang,
-            'jumlahMenipis' => $jumlahMenipis,
-            'opsiBarang'    => $this->opsiBarang(),
+            'daftarBarang'   => $daftarBarang,
+            'jumlahMenipis'  => $jumlahMenipis,
+            'opsiBarang'     => $this->opsiBarang(),
+            'daftarKategori' => KategoriBarang::orderBy('jenis')->orderBy('nama')->get(),
         ]);
     }
 

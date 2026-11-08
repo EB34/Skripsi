@@ -6,6 +6,10 @@
 <style>
     button.btn-abu { cursor: pointer; }
     .ukuran-lensa { font-size: .72rem; font-weight: 600; color: #1f5f87; }
+    .select-kategori {
+        height: 38px; border: 0; border-radius: 8px;
+        padding: 0 10px; font-size: .8rem; background: #fff; max-width: 200px;
+    }
 </style>
 @endpush
 
@@ -14,15 +18,24 @@
     // Dipakai kalau popup ditolak validasi: popup dibuka lagi dengan isian tadi
     $buka = in_array(old('_form'), ['buat', 'ubah'], true) ? old('_form') : '';
     $lama = [
-        'id'         => old('_id'),
-        'kode_model' => old('kode_model'),
-        'jenis'      => old('jenis'),
-        'merk'       => old('merk'),
-        'harga_jual' => old('harga_jual'),
-        'sph'        => old('sph'),
-        'cyl'        => old('cyl'),
-        'tanpa_stok' => (bool) old('tanpa_stok'),
+        'id'          => old('_id'),
+        'kode_model'  => old('kode_model'),
+        'jenis'       => old('jenis'),
+        'merk'        => old('merk'),
+        'kategori_id' => old('kategori_id'),
+        'harga_jual'  => old('harga_jual'),
+        'sph'         => old('sph'),
+        'cyl'         => old('cyl'),
+        'tanpa_stok'  => (bool) old('tanpa_stok'),
     ];
+
+    // Pilihan kategori untuk JavaScript popup
+    $kategoriJs = $daftarKategori->map(fn ($k) => ['id' => $k->id, 'jenis' => $k->jenis, 'nama' => $k->nama])->values();
+
+    // Pilihan filter: kalau satu jenis dipilih, hanya kategori jenis itu yang tampil
+    $kategoriFilter = request('jenis') ? $daftarKategori->where('jenis', request('jenis')) : $daftarKategori;
+    $namaJenis = \App\Models\KategoriBarang::JENIS;
+    $labelKategori = \App\Models\KategoriBarang::LABEL;
 @endphp
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -32,15 +45,28 @@
     </button>
 </div>
 
-{{-- Panel pencarian + filter jenis --}}
+{{-- Panel pencarian + filter jenis + filter kategori --}}
 <form method="GET" action="{{ route('barang.index') }}" class="panel-abu d-flex align-items-center gap-3">
     <div class="search-box">
         <i class="bi bi-search"></i>
-        <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari kode model, merk, atau ukuran SPH...">
+        <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari kode model, merk, kategori, atau ukuran SPH...">
     </div>
 
     @if (request('jenis'))
         <input type="hidden" name="jenis" value="{{ request('jenis') }}">
+    @endif
+
+    @if ($kategoriFilter->isNotEmpty())
+        <select name="kategori" class="select-kategori" onchange="this.form.submit()">
+            <option value="">Semua kategori</option>
+            @foreach ($kategoriFilter->groupBy('jenis') as $jenisGrup => $grup)
+                <optgroup label="{{ $labelKategori[$jenisGrup] ?? ucfirst($jenisGrup) }}">
+                    @foreach ($grup as $k)
+                        <option value="{{ $k->id }}" @selected((string) request('kategori') === (string) $k->id)>{{ $k->nama }}</option>
+                    @endforeach
+                </optgroup>
+            @endforeach
+        </select>
     @endif
 
     @foreach ([['frame', 'Frame', 'bi-eyeglasses'], ['lensa', 'Lensa', 'bi-record-circle'], ['softlens', 'Softlens', 'bi-eye']] as [$nilai, $label, $ikon])
@@ -49,6 +75,10 @@
             <i class="bi {{ $ikon }}"></i> {{ $label }}
         </a>
     @endforeach
+
+    @if (request('q') || request('jenis') || request('kategori'))
+        <a href="{{ route('barang.index') }}" class="text-muted small text-decoration-none">Reset</a>
+    @endif
 </form>
 
 {{-- Kartu barang --}}
@@ -76,6 +106,9 @@
                 <div class="barang-nama">{{ $b->merk }}</div>
                 <div class="barang-info">
                     Jenis: {{ ucfirst($b->jenis) }}<br>
+                    @if ($b->kategori)
+                        {{ $labelKategori[$b->jenis] ?? 'Kategori' }}: {{ $b->kategori->nama }}<br>
+                    @endif
                     @if ($b->tanpa_stok)
                         <span class="ukuran-lensa">Ukuran diisi saat transaksi</span><br>
                         Tanpa stok (dipesan ke supplier)
@@ -98,6 +131,7 @@
                                 data-kode="{{ $b->kode_model }}"
                                 data-jenis="{{ $b->jenis }}"
                                 data-merk="{{ $b->merk }}"
+                                data-kategori="{{ $b->kategori_id }}"
                                 data-harga="{{ (int) $b->harga_jual }}"
                                 data-sph="{{ $b->sph }}"
                                 data-cyl="{{ $b->cyl }}"
@@ -171,6 +205,17 @@
                         <input type="text" name="merk" class="form-control" required>
                     </div>
 
+                    {{-- Kategori: Material (frame), Tipe Lensa, atau Tipe Softlens. Pilihannya mengikuti jenis. --}}
+                    <div class="mb-3 d-none" id="blok-kategori">
+                        <label class="form-label" id="label-kategori">Kategori</label>
+                        <select name="kategori_id" class="form-select">
+                            <option value="">-- Tidak diisi --</option>
+                        </select>
+                        <div class="form-text d-none" id="info-kategori-kosong">
+                            Belum ada pilihan untuk jenis ini. Tambahkan lewat menu Kategori Barang.
+                        </div>
+                    </div>
+
                     {{-- Lensa custom: hanya tampil kalau jenis = Lensa --}}
                     <div class="mb-3 d-none" id="blok-custom">
                         <div class="form-check">
@@ -215,11 +260,13 @@
 {{-- Data untuk JavaScript dititipkan di atribut HTML (tanpa Blade di dalam tag script) --}}
 <div id="data-barang" hidden
      data-buka="{{ $buka }}"
-     data-lama="{{ json_encode($lama) }}"></div>
+     data-lama="{{ json_encode($lama) }}"
+     data-kategori="{{ json_encode($kategoriJs) }}"></div>
 @endsection
 
 @push('scripts')
 <script>
+    const dataEl   = document.getElementById('data-barang');
     const modalEl  = document.getElementById('modalBarang');
     const modal    = bootstrap.Modal.getOrCreateInstance(modalEl);
     const form     = document.getElementById('form-barang');
@@ -232,6 +279,31 @@
     const blokCustom   = document.getElementById('blok-custom');
     const cekCustom    = document.getElementById('cek-custom');
     const labelHarga   = document.getElementById('label-harga');
+    const blokKategori = document.getElementById('blok-kategori');
+    const labelKategori = document.getElementById('label-kategori');
+    const infoKosong   = document.getElementById('info-kategori-kosong');
+
+    const semuaKategori = JSON.parse(dataEl.dataset.kategori);
+    const namaKategori  = { frame: 'Material', lensa: 'Tipe Lensa', softlens: 'Tipe Softlens' };
+
+    // Isi dropdown kategori dengan pilihan yang jenisnya sama dengan jenis barang
+    function isiKategori(jenis, terpilih = '') {
+        const sel = form.elements['kategori_id'];
+        sel.innerHTML = '<option value="">-- Tidak diisi --</option>';
+
+        const pilihan = semuaKategori.filter(k => k.jenis === jenis);
+        pilihan.forEach(k => {
+            const opt = document.createElement('option');
+            opt.value = k.id;
+            opt.textContent = k.nama;
+            sel.appendChild(opt);
+        });
+
+        sel.value = String(terpilih ?? '');
+        blokKategori.classList.toggle('d-none', !jenis);
+        labelKategori.textContent = namaKategori[jenis] ?? 'Kategori';
+        infoKosong.classList.toggle('d-none', !jenis || pilihan.length > 0);
+    }
 
     // - Checkbox custom hanya muncul untuk jenis Lensa
     // - SPH/CYL muncul untuk lensa dan softlens, kecuali lensa custom (ukurannya diisi saat transaksi)
@@ -249,7 +321,10 @@
         labelHarga.textContent = cekCustom.checked ? 'Harga Awal (Rp), boleh diubah saat transaksi' : 'Harga Jual (Rp)';
     }
 
-    form.elements['jenis'].addEventListener('change', aturUkuran);
+    form.elements['jenis'].addEventListener('change', () => {
+        isiKategori(form.elements['jenis'].value);   // ganti jenis = pilihan kategori ikut berganti
+        aturUkuran();
+    });
     cekCustom.addEventListener('change', aturUkuran);
 
     function bukaForm(mode, data = {}) {
@@ -270,6 +345,7 @@
         form.elements['cyl'].value        = data.cyl ?? '';
         cekCustom.checked                 = !!data.tanpa_stok;
 
+        isiKategori(data.jenis ?? '', data.kategori_id ?? '');
         aturUkuran();
         modal.show();
     }
@@ -296,6 +372,7 @@
             kode_model: tombol.dataset.kode,
             jenis: tombol.dataset.jenis,
             merk: tombol.dataset.merk,
+            kategori_id: tombol.dataset.kategori,
             harga_jual: tombol.dataset.harga,
             sph: tombol.dataset.sph,
             cyl: tombol.dataset.cyl,
@@ -304,7 +381,6 @@
     });
 
     // Kalau popup tadi ditolak validasi, buka lagi dengan isian yang tadi diketik
-    const dataEl = document.getElementById('data-barang');
     if (dataEl.dataset.buka) {
         bukaForm(dataEl.dataset.buka, JSON.parse(dataEl.dataset.lama));
     }

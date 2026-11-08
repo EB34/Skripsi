@@ -19,6 +19,7 @@ use App\Http\Controllers\KesalahanTokoController;
 use App\Http\Controllers\LogNotifikasiController;
 use App\Http\Controllers\TemplateNotifikasiController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\KategoriBarangController;
 
 // Route::get('/', function () {
 //     return view('welcome');
@@ -42,6 +43,8 @@ Route::middleware('auth')->group(function () {
     Route::resource('penjualan', PenjualanController::class)->only(['index', 'create', 'store', 'show']);
     Route::post('penjualan/{penjualan}/tutup', [PenjualanController::class, 'tutup'])->name('penjualan.tutup');   // BARU
     Route::resource('barang', BarangController::class)->only(['index', 'store', 'update', 'destroy']);
+    // Kategori barang (material frame, tipe lensa, tipe softlens), Owner dan Petugas
+    Route::resource('kategori', KategoriBarangController::class)->only(['index', 'store', 'update', 'destroy']);
 
     // Pengelolaan Stok, tiga tab
     Route::get('/stok', [StokController::class, 'index'])->name('stok.index');

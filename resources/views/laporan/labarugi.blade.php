@@ -152,7 +152,7 @@
     <div class="row g-3 mb-4">
         <div class="col-md-4">
             <div class="lr-sum">
-                <div class="lbl">Total Pendapatan Bersih</div>
+                <div class="lbl">Total Pendapatan</div>
                 <div class="val {{ $warna($r['pendapatan_bersih']) }}">{{ $rp($r['pendapatan_bersih']) }}</div>
             </div>
         </div>
@@ -198,7 +198,7 @@
                 <td class="num neg">{{ $rp(-$r['refund']) }}</td>
             </tr>
             <tr class="tot">
-                <td>Total Pendapatan Bersih</td>
+                <td>Total Pendapatan</td>
                 <td class="num {{ $warna($r['pendapatan_bersih']) }}">{{ $rp($r['pendapatan_bersih']) }}</td>
             </tr>
 

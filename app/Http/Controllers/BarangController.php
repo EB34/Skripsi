@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Barang;
+use App\Models\KategoriBarang;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -32,6 +33,8 @@ class BarangController extends Controller
             'kode_model' => ['required', 'string', 'max:255', Rule::unique('barang', 'kode_model')->ignore($barang?->id)],
             'jenis'      => ['required', Rule::in(['frame', 'lensa', 'softlens'])],
             'merk'       => ['required', 'string', 'max:255'],
+            // Kategori opsional, tapi kalau diisi harus kategori dengan jenis yang sama dengan jenis barang
+            'kategori_id' => ['nullable', Rule::exists('kategori_barang', 'id')->where('jenis', request('jenis'))],
             'harga_jual' => ['required', 'numeric', 'min:0'],
             'tanpa_stok' => ['boolean'],
             // SPH wajib untuk lensa dan softlens, kecuali lensa custom (ukurannya diisi saat transaksi)
@@ -82,21 +85,25 @@ class BarangController extends Controller
                     . 'Gunakan kode lain, atau tambah stoknya lewat Pembelian Supplier.'
                 : 'Kode model sudah dipakai barang lain.',
             'sph.required' => 'SPH wajib diisi untuk lensa dan softlens (kecuali lensa custom).',
+            'kategori_id.exists' => 'Kategori tidak sesuai dengan jenis barang.',
         ];
     }
 
     private function namaAtribut(): array
     {
-        return ['sph' => 'SPH', 'cyl' => 'CYL'];
+        return ['sph' => 'SPH', 'cyl' => 'CYL', 'kategori_id' => 'Kategori'];
     }
 
     public function index(Request $request)
     {
         $barang = Barang::query()
+            ->with('kategori')
             ->when($request->q, function ($query, $cari) {
                 $query->where(function ($w) use ($cari) {
                     $w->where('kode_model', 'like', "%{$cari}%")
-                    ->orWhere('merk', 'like', "%{$cari}%");
+                    ->orWhere('merk', 'like', "%{$cari}%")
+                    // Mengetik nama kategori (misalnya "plastik" atau "photochromic") ikut mencari
+                    ->orWhereHas('kategori', fn ($k) => $k->where('nama', 'like', "%{$cari}%"));
 
                     // Mengetik angka (misalnya -2.25 atau -2,25) mencari lensa/softlens dengan SPH itu
                     $angka = str_replace(',', '.', trim($cari));
@@ -106,11 +113,15 @@ class BarangController extends Controller
                 });
             })
             ->when($request->jenis, fn ($query, $jenis) => $query->where('jenis', $jenis))
+            ->when($request->kategori, fn ($query, $id) => $query->where('kategori_id', $id))
             ->orderBy('kode_model')
             ->paginate(12)
             ->withQueryString();
 
-        return view('barang.index', compact('barang'));
+        return view('barang.index', [
+            'barang'         => $barang,
+            'daftarKategori' => KategoriBarang::orderBy('jenis')->orderBy('nama')->get(),
+        ]);
     }
 
     public function store(Request $request)
