@@ -9,6 +9,10 @@ class DetailPembelian extends Model
     protected $table = 'detail_pembelian';
     protected $guarded = [];
 
+    protected $casts = [
+        'diretur' => 'boolean',
+    ];
+
     public function pembelian() { return $this->belongsTo(Pembelian::class, 'pembelian_id'); }
     public function barang() { return $this->belongsTo(Barang::class, 'barang_id'); }
 

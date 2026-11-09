@@ -143,7 +143,10 @@
                                     {{ $d->jumlah_dipesan }} pcs {{ $d->barang->merk }}
                                     <span class="mono text-muted">({{ $d->barang->kode_model }})</span>
                                     @if ($d->detail_penjualan_id)
-                                        <span class="badge-custom">Custom</span>
+                                    <span class="badge-custom">Custom</span>
+                                    @if ($d->diretur)
+                                    <span class="badge-custom" style="background:#fddede;color:#a31515;border-color:#f0a0a0">Diretur, dipesan ulang</span>
+                                    @endif
                                         <div style="font-size:.7rem" class="text-muted">
                                             {{ $d->label_nota }} | Ukuran: {{ $d->keterangan_ukuran ?: '-' }}
                                         </div>
@@ -388,12 +391,12 @@
                                         <div class="col-md-6">
                                             <label class="form-label" style="font-size:.8rem">Jumlah Cacat:</label>
                                             @if ($isCustom)
-                                                <input type="number" name="item[{{ $d->id }}][cacat]"
-                                                       value="0" readonly class="form-control">
-                                                <div class="form-text">Lensa custom tidak masuk stok, jadi tidak ada retur otomatis.</div>
+                                            <input type="number" name="item[{{ $d->id }}][cacat]"
+                                            min="0" max="1" value="0" required class="form-control">
+                                            <div class="form-text">Isi 1 kalau lensa custom ini cacat atau salah ukuran. Retur ke supplier dibuat otomatis, stok tidak berubah, dan HPP nota tidak diisi.</div>
                                             @else
                                                 <input type="number" name="item[{{ $d->id }}][cacat]"
-                                                       min="0" value="0" required class="form-control">
+                                                min="0" value="0" required class="form-control">
                                             @endif
                                         </div>
                                         <div class="col-12">

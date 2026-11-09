@@ -22,7 +22,10 @@ class ReturSupplierController extends Controller
             $status = null;
         }
 
-        $query = ReturSupplier::with(['pembelian.supplier.kontak', 'pembelian.detail', 'detail.barang']);
+        $query = ReturSupplier::with([
+            'pembelian.supplier.kontak', 'pembelian.detail', 'detail.barang',
+            'detail.detailPembelian.detailPenjualan.penjualan.customer',
+        ]);
         if ($status) {
             $query->where('status', $status);
         }
@@ -37,25 +40,49 @@ class ReturSupplierController extends Controller
             ->groupBy('status')
             ->pluck('total', 'status');
 
-        // PO yang barangnya sudah diterima, beserta barang di dalamnya (untuk popup Buat Retur Baru).
+        // PO yang barangnya sudah diterima, beserta isinya (untuk popup Buat Retur Baru).
+        // Barang stok: satu pilihan per barang. Lensa custom: satu pilihan per baris PO (nota dan ukuran).
         // Tidak ada harga di sini, jadi aman untuk Petugas.
-        $poOpsi = Pembelian::with(['supplier', 'detail.barang'])
+        $poOpsi = Pembelian::with(['supplier', 'detail.barang', 'detail.detailPenjualan.penjualan.customer'])
             ->where('status', '!=', 'menunggu_pengiriman')
             ->latest('tanggal')
             ->latest('id')
             ->limit(100)
             ->get()
-            ->map(fn (Pembelian $p) => [
-                'id'    => $p->id,
-                'label' => $p->nomor_po
-                    . ' · ' . ($p->supplier?->nama_perusahaan ?? '-')
-                    . ' · ' . ($p->tanggal?->format('d/m/Y') ?? '-'),
-                'items' => $p->detail->unique('barang_id')->map(fn ($d) => [
-                    'id'    => $d->barang_id,
-                    'label' => trim(($d->barang?->merk ?? '') . ' (' . ($d->barang?->kode_model ?? '') . ')'),
-                    'stok'  => (int) ($d->barang?->stok_tersedia ?? 0),
-                ])->values(),
-            ])
+            ->map(function (Pembelian $p) {
+                $stok = $p->detail
+                    ->filter(fn ($d) => $d->detail_penjualan_id === null)
+                    ->unique('barang_id')
+                    ->map(fn ($d) => [
+                        'key'       => 'b' . $d->barang_id,
+                        'barang_id' => $d->barang_id,
+                        'detail_id' => null,
+                        'custom'    => false,
+                        'label'     => trim(($d->barang?->merk ?? '') . ' (' . ($d->barang?->kode_model ?? '') . ')'),
+                        'stok'      => (int) ($d->barang?->stok_tersedia ?? 0),
+                    ]);
+
+                // Lensa custom yang sudah diterima dan belum diretur potong tagihan
+                $custom = $p->detail
+                    ->filter(fn ($d) => $d->detail_penjualan_id !== null && ! $d->diretur && (int) $d->jumlah_diterima > 0)
+                    ->map(fn ($d) => [
+                        'key'       => 'd' . $d->id,
+                        'barang_id' => $d->barang_id,
+                        'detail_id' => $d->id,
+                        'custom'    => true,
+                        'label'     => trim(($d->barang?->merk ?? '') . ' (' . ($d->barang?->kode_model ?? '') . ')')
+                            . ' | ' . $d->label_nota . ' | ' . ($d->keterangan_ukuran ?: '-'),
+                        'stok'      => 0,
+                    ]);
+
+                return [
+                    'id'    => $p->id,
+                    'label' => $p->nomor_po
+                        . ' · ' . ($p->supplier?->nama_perusahaan ?? '-')
+                        . ' · ' . ($p->tanggal?->format('d/m/Y') ?? '-'),
+                    'items' => $stok->concat($custom)->values(),
+                ];
+            })
             ->values();
 
         return view('retur.supplier', compact('daftar', 'status', 'hitung', 'poOpsi'));
@@ -65,12 +92,13 @@ class ReturSupplierController extends Controller
     public function store(Request $request, ReturSupplierService $layanan)
     {
         $v = Validator::make($request->all(), [
-            'pembelian_id' => ['required', 'exists:pembelian,id'],
-            'barang_id'    => ['required', 'exists:barang,id'],
-            'jumlah'       => ['required', 'integer', 'min:1'],
-            'alasan'       => ['required', Rule::in(array_keys(ReturSupplier::ALASAN))],
-            'keterangan'   => ['required', 'string', 'max:255'],
-            'jenis_retur'  => ['required', Rule::in(array_keys(ReturSupplier::JENIS))],
+            'pembelian_id'        => ['required', 'exists:pembelian,id'],
+            'barang_id'           => ['required', 'exists:barang,id'],
+            'detail_pembelian_id' => ['nullable', 'integer', 'exists:detail_pembelian,id'],
+            'jumlah'              => ['required', 'integer', 'min:1'],
+            'alasan'              => ['required', Rule::in(array_keys(ReturSupplier::ALASAN))],
+            'keterangan'          => ['required', 'string', 'max:255'],
+            'jenis_retur'         => ['required', Rule::in(array_keys(ReturSupplier::JENIS))],
         ], [
             'pembelian_id.required' => 'PO asal wajib dipilih.',
             'barang_id.required'    => 'Barang wajib dipilih.',
@@ -85,6 +113,8 @@ class ReturSupplierController extends Controller
             return back()->withInput()->with('error', $v->errors()->first());
         }
 
+        $detailPembelianId = $request->filled('detail_pembelian_id') ? (int) $request->input('detail_pembelian_id') : null;
+
         try {
             $retur = $layanan->buatManual(
                 (int) $request->input('pembelian_id'),
@@ -93,14 +123,18 @@ class ReturSupplierController extends Controller
                 $request->input('alasan'),
                 (string) $request->input('keterangan'),
                 $request->input('jenis_retur'),
-                Auth::id()
+                Auth::id(),
+                $detailPembelianId
             );
         } catch (RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }
 
-        return redirect()->route('retur.supplier')
-            ->with('success', "{$retur->nomor_retur} dibuat dan stok layak jual sudah dikurangi. Menunggu validasi Owner untuk menerbitkan surat jalan.");
+        $pesan = $detailPembelianId
+            ? "{$retur->nomor_retur} dibuat untuk lensa custom (stok tidak berubah, HPP nota kembali ke 0). Menunggu validasi Owner untuk menerbitkan surat jalan."
+            : "{$retur->nomor_retur} dibuat dan stok layak jual sudah dikurangi. Menunggu validasi Owner untuk menerbitkan surat jalan.";
+
+        return redirect()->route('retur.supplier')->with('success', $pesan);
     }
 
     /**
@@ -174,7 +208,15 @@ class ReturSupplierController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        $pesan = "{$hasil['nomor']} selesai: {$hasil['bagus']} unit pengganti masuk stok.";
+        $bagian = [];
+        if ($hasil['bagus'] > 0) {
+            $bagian[] = "{$hasil['bagus']} unit pengganti masuk stok";
+        }
+        if ($hasil['custom'] > 0) {
+            $bagian[] = "{$hasil['custom']} lensa custom pengganti diterima (HPP nota terisi, stok tidak berubah)";
+        }
+
+        $pesan = "{$hasil['nomor']} selesai" . ($bagian ? ': ' . implode(', ', $bagian) . '.' : '.');
         if ($hasil['cacat'] > 0) {
             $pesan .= " {$hasil['cacat']} unit cacat otomatis diajukan sebagai {$hasil['retur_baru']}.";
         }
@@ -202,8 +244,12 @@ class ReturSupplierController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return redirect()->route('retur.supplier')
-            ->with('success', "{$hasil->nomor_retur} selesai. Total tagihan PO berkurang Rp " . number_format($hasil->nilai_potongan, 0, ',', '.') . '.');
+        $pesan = "{$hasil->nomor_retur} selesai. Total tagihan PO berkurang Rp " . number_format($hasil->nilai_potongan, 0, ',', '.') . '.';
+        if ($hasil->detail->contains(fn ($d) => $d->detail_pembelian_id)) {
+            $pesan .= ' Lensa custom-nya bisa dipesan ulang lewat PO baru (jenis Lensa Custom).';
+        }
+
+        return redirect()->route('retur.supplier')->with('success', $pesan);
     }
 
     public function suratJalan(ReturSupplier $retur)

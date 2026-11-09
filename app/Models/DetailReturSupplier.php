@@ -11,4 +11,7 @@ class DetailReturSupplier extends Model
 
     public function retur() { return $this->belongsTo(ReturSupplier::class, 'retur_supplier_id'); }
     public function barang() { return $this->belongsTo(Barang::class, 'barang_id'); }
+
+    // Baris PO yang diretur (hanya terisi untuk lensa custom)
+    public function detailPembelian() { return $this->belongsTo(DetailPembelian::class, 'detail_pembelian_id'); }
 }

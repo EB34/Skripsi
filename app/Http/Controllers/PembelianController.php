@@ -12,6 +12,7 @@ use App\Models\Supplier;
 use App\Services\StokService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class PembelianController extends Controller
@@ -39,11 +40,12 @@ class PembelianController extends Controller
             // PO barang stok: lensa custom tidak ikut (dipesan lewat jenis "Lensa Custom")
             $barang = Barang::where('tanpa_stok', false)->orderBy('kode_model')->get();
 
-            // Biji lensa custom yang masih menunggu dipesan: nota berjalan dan belum punya PO
+            // Biji lensa custom yang masih menunggu dipesan: nota berjalan dan tidak punya PO aktif
+            // (PO yang sudah diretur potong tagihan tidak dihitung, jadi lensanya bisa dipesan ulang)
             $custom = DetailPenjualan::with(['barang', 'penjualan.customer'])
                 ->whereHas('barang', fn ($q) => $q->where('tanpa_stok', true))
                 ->whereHas('penjualan', fn ($q) => $q->where('status', 'berjalan'))
-                ->whereDoesntHave('pembelianCustom')
+                ->whereDoesntHave('pembelianAktif')
                 ->orderBy('id')
                 ->get();
         }
@@ -77,7 +79,7 @@ class PembelianController extends Controller
         try {
             $pembelian = DB::transaction(function () use ($data, $custom) {
                 if ($custom) {
-                    $ids  = collect($data['items'])->pluck('detail_penjualan_id');
+                    $ids   = collect($data['items'])->pluck('detail_penjualan_id');
                     $baris = DetailPenjualan::with(['barang', 'penjualan'])
                         ->whereIn('id', $ids)
                         ->lockForUpdate()
@@ -93,7 +95,11 @@ class PembelianController extends Controller
                         if ($dp->penjualan->status !== 'berjalan') {
                             throw new RuntimeException("{$dp->label_nota}: nota tidak lagi berjalan, tidak bisa dipesan.");
                         }
-                        if (DetailPembelian::where('detail_penjualan_id', $dp->id)->exists()) {
+                        // Hanya PO yang masih berlaku yang menghalangi. PO yang sudah diretur potong tagihan boleh diganti PO baru.
+                        $sudahAda = DetailPembelian::where('detail_penjualan_id', $dp->id)
+                            ->where('diretur', false)
+                            ->exists();
+                        if ($sudahAda) {
                             throw new RuntimeException("{$dp->label_nota}: lensa ini sudah pernah dipesan ke supplier.");
                         }
                     }
@@ -163,7 +169,8 @@ class PembelianController extends Controller
     /**
      * Verifikasi penerimaan fisik (popup checklist).
      * Barang stok: stok masuk, cacat otomatis diretur.
-     * Lensa custom: tidak masuk stok, HPP baris nota diisi dari harga beli PO.
+     * Lensa custom: tidak masuk stok. HPP baris nota diisi dari harga beli PO untuk unit yang bagus.
+     * Kalau lensa custom cacat, retur ke supplier dibuat otomatis dan HPP nota tidak diisi.
      */
     public function terima(Request $request, Pembelian $pembelian, StokService $stok)
     {
@@ -196,9 +203,6 @@ class PembelianController extends Controller
             if ($cacat > $diterima) {
                 return back()->with('error', "{$kode}: jumlah cacat tidak boleh lebih besar dari jumlah diterima.");
             }
-            if ($d->detail_penjualan_id && $cacat > 0) {
-                return back()->with('error', "{$kode} (custom): lensa custom cacat belum bisa dicatat di checklist ini. Hubungi Owner.");
-            }
         }
 
         try {
@@ -219,27 +223,36 @@ class PembelianController extends Controller
                     $cacat    = (int) $in['cacat'];
                     $bagus    = $diterima - $cacat;
                     $isCustom = $d->detail_penjualan_id !== null;
+                    $ket      = $in['keterangan'] ?? null;
 
                     if ($isCustom) {
                         // Lensa custom: bukan batch FIFO, tidak masuk stok
                         $d->update([
                             'jumlah_diterima'  => $diterima,
-                            'jumlah_cacat'     => 0,
-                            'keterangan_cacat' => null,
+                            'jumlah_cacat'     => $cacat,
+                            'keterangan_cacat' => $ket,
                             'sisa_jumlah'      => 0,
                             'tanggal_masuk'    => null,
                         ]);
 
-                        // HPP baris nota = harga beli x jumlah diterima
-                        if ($diterima > 0) {
+                        // HPP baris nota = harga beli x jumlah yang bagus. Kalau cacat, HPP tetap 0 sampai ada pengganti.
+                        if ($bagus > 0) {
                             DetailPenjualan::whereKey($d->detail_penjualan_id)
-                                ->update(['hpp' => (float) $d->harga_beli * $diterima]);
+                                ->update(['hpp' => (float) $d->harga_beli * $bagus]);
+                        }
+
+                        // Ukuran ikut ke keterangan supaya tercetak di surat jalan retur
+                        if ($cacat > 0) {
+                            $ket = Str::limit(
+                                trim(($ket ?: 'Cacat') . ' [Ukuran: ' . ($d->keterangan_ukuran ?: '-') . ']'),
+                                255, ''
+                            );
                         }
                     } else {
                         $d->update([
                             'jumlah_diterima'  => $diterima,
                             'jumlah_cacat'     => $cacat,
-                            'keterangan_cacat' => $in['keterangan'] ?? null,
+                            'keterangan_cacat' => $ket,
                             'sisa_jumlah'      => $bagus,     // batch FIFO baru
                             'tanggal_masuk'    => $bagus > 0 ? now() : null,
                         ]);
@@ -247,15 +260,16 @@ class PembelianController extends Controller
                         if ($bagus > 0) {
                             $stok->barangMasuk($d->barang_id, $bagus, 'pembelian', $p->id);
                         }
-                        if ($cacat > 0) {
-                            $returItems[] = [
-                                'barang_id'  => $d->barang_id,
-                                'jumlah'     => $cacat,
-                                'keterangan' => $in['keterangan'] ?? null,
-                            ];
-                        }
                     }
 
+                    if ($cacat > 0) {
+                        $returItems[] = [
+                            'barang_id'           => $d->barang_id,
+                            'detail_pembelian_id' => $isCustom ? $d->id : null,
+                            'jumlah'              => $cacat,
+                            'keterangan'          => $ket,
+                        ];
+                    }
                     if ($diterima < $d->jumlah_dipesan || $cacat > 0) {
                         $lengkap = false;
                     }
@@ -271,11 +285,12 @@ class PembelianController extends Controller
 
                     foreach ($returItems as $r) {
                         DetailReturSupplier::create([
-                            'retur_supplier_id' => $retur->id,
-                            'barang_id'         => $r['barang_id'],
-                            'jumlah'            => $r['jumlah'],
-                            'alasan'            => 'cacat',
-                            'keterangan'        => $r['keterangan'],
+                            'retur_supplier_id'   => $retur->id,
+                            'barang_id'           => $r['barang_id'],
+                            'detail_pembelian_id' => $r['detail_pembelian_id'],
+                            'jumlah'              => $r['jumlah'],
+                            'alasan'              => 'cacat',
+                            'keterangan'          => $r['keterangan'],
                         ]);
                     }
                 }

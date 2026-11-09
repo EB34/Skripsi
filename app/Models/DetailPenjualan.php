@@ -12,10 +12,16 @@ class DetailPenjualan extends Model
     public function penjualan() { return $this->belongsTo(Penjualan::class, 'penjualan_id'); }
     public function barang() { return $this->belongsTo(Barang::class, 'barang_id'); }
 
-    // PO lensa custom yang memesan baris nota ini (maksimal satu)
-    public function pembelianCustom() { return $this->hasOne(DetailPembelian::class, 'detail_penjualan_id'); }
+    // Semua PO lensa custom untuk baris nota ini (bisa lebih dari satu kalau pernah diretur potong tagihan)
+    public function pembelianCustom() { return $this->hasMany(DetailPembelian::class, 'detail_penjualan_id'); }
 
-    // Label nota untuk dropdown PO dan checklist
+    // PO yang masih berlaku (belum diretur potong tagihan). Kalau tidak ada, lensa ini perlu dipesan.
+    public function pembelianAktif()
+    {
+        return $this->hasOne(DetailPembelian::class, 'detail_penjualan_id')->where('diretur', false);
+    }
+
+    // Label nota untuk dropdown PO, checklist, dan retur
     public function getLabelNotaAttribute(): string
     {
         $pj = $this->penjualan;
@@ -25,7 +31,9 @@ class DetailPenjualan extends Model
 
         $cust = $pj->customer?->nama;
 
-        return 'Nota #' . $pj->id . ' | ' . $pj->tanggal->format('d/m/Y') . ($cust ? ' | ' . $cust : '');
+        return 'Nota ' . ($pj->nomor_nota ?: '#' . $pj->id)
+            . ' | ' . $pj->tanggal->format('d/m/Y')
+            . ($cust ? ' | ' . $cust : '');
     }
 
     /**

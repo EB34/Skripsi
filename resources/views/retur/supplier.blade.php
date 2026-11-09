@@ -21,6 +21,10 @@
     .rt-status.selesai  { background: #d6f5d6; color: #1b7a1b; border-color: #8fd48f; }
     .rt-sub { font-size: .68rem; color: #666; }
     .rt-jenis { font-size: .68rem; color: #1c4e80; margin-top: 4px; }
+    .rt-badge-custom {
+        display: inline-block; font-size: .62rem; font-weight: 600; padding: 0 7px;
+        border-radius: 6px; background: #e8dcff; color: #4b2a8a; border: 1px solid #c4aef0;
+    }
     .rt-btn {
         display: inline-flex; align-items: center; gap: 6px;
         border: 0; border-radius: 6px; padding: 6px 12px;
@@ -87,20 +91,33 @@
                         $namaKontak = $supplier ? $supplier->kontak->pluck('nama')->implode(', ') : '';
                         $invoice    = $r->pembelian?->nomor_invoice_supplier;
 
-                        // Saran nominal potongan = harga beli di PO toko x jumlah retur (hanya dihitung untuk Owner)
+                        // Saran nominal potongan = harga beli di PO toko x jumlah retur (hanya dihitung untuk Owner).
+                        // Lensa custom memakai baris PO yang tepat, bukan sekadar barang yang sama.
                         $saran = 0;
                         if ($isOwner) {
                             foreach ($r->detail as $d) {
-                                $hargaPo = $r->pembelian?->detail->firstWhere('barang_id', $d->barang_id)?->harga_beli ?? 0;
-                                $saran += (int) $d->jumlah * (float) $hargaPo;
+                                $barisPo = $d->detail_pembelian_id
+                                    ? $r->pembelian?->detail->firstWhere('id', $d->detail_pembelian_id)
+                                    : $r->pembelian?->detail->firstWhere('barang_id', $d->barang_id);
+                                $saran += (int) $d->jumlah * (float) ($barisPo?->harga_beli ?? 0);
                             }
                         }
 
-                        $itemsJs = $r->detail->map(fn ($d) => [
-                            'id'     => $d->id,
-                            'label'  => trim(($d->barang?->merk ?? '') . ' ' . ($d->barang?->kode_model ?? '')),
-                            'jumlah' => (int) $d->jumlah,
-                        ])->values();
+                        $itemsJs = $r->detail->map(function ($d) {
+                            $bp = $d->detailPembelian;
+                            $custom = (bool) ($bp?->detail_penjualan_id);
+                            $label = trim(($d->barang?->merk ?? '') . ' ' . ($d->barang?->kode_model ?? ''));
+                            if ($custom) {
+                                $label .= ' | ' . $bp->label_nota . ' | ' . ($bp->keterangan_ukuran ?: '-');
+                            }
+
+                            return [
+                                'id'     => $d->id,
+                                'label'  => $label,
+                                'jumlah' => (int) $d->jumlah,
+                                'custom' => $custom,
+                            ];
+                        })->values();
                     @endphp
                     <tr>
                         <td>
@@ -123,6 +140,10 @@
                                 <div>
                                     {{ $d->jumlah }} pcs {{ $d->barang?->merk ?? '-' }}
                                     <span class="mono rt-sub">({{ $d->barang?->kode_model }})</span>
+                                    @if ($d->detailPembelian?->detail_penjualan_id)
+                                        <span class="rt-badge-custom">Custom</span>
+                                        <div class="rt-sub">{{ $d->detailPembelian->label_nota }}</div>
+                                    @endif
                                     <span class="rt-sub">- {{ \App\Models\ReturSupplier::ALASAN[$d->alasan] ?? $d->alasan }}</span>
                                     @if ($d->keterangan)
                                         <div class="rt-sub">{{ $d->keterangan }}</div>
@@ -218,9 +239,12 @@
                     </select>
 
                     <label class="form-label">Barang</label>
-                    <select name="barang_id" id="bBarang" class="form-select mb-1" required disabled>
+                    {{-- Pilihan ini tidak dikirim langsung: JavaScript mengisi dua kolom tersembunyi di bawahnya --}}
+                    <select id="bBarang" class="form-select mb-1" required disabled>
                         <option value="">Pilih PO dulu</option>
                     </select>
+                    <input type="hidden" name="barang_id" id="bBarangId" value="{{ old('barang_id') }}">
+                    <input type="hidden" name="detail_pembelian_id" id="bDetailId" value="{{ old('detail_pembelian_id') }}">
                     <div class="form-text mb-3" id="bStok">Stok layak jual akan berkurang sebanyak jumlah yang diretur.</div>
 
                     <label class="form-label">Jumlah</label>
@@ -235,7 +259,7 @@
                     </select>
 
                     <label class="form-label">Keterangan (tercetak di surat jalan) <span class="text-danger">*</span></label>
-                    <input type="text" name="keterangan" maxlength="255" value="{{ old('keterangan') }}" class="form-control mb-3"
+                    <input type="text" name="keterangan" maxlength="200" value="{{ old('keterangan') }}" class="form-control mb-3"
                            placeholder="Contoh: warna tidak sesuai pesanan" required>
 
                     <label class="form-label d-block">Jenis retur <span class="text-danger">*</span></label>
@@ -269,13 +293,14 @@
                 </div>
                 <div class="modal-body">
                     <div class="rt-banner">
-                        Periksa fisik barang pengganti. Unit bagus masuk stok. Unit cacat otomatis diajukan sebagai retur baru.
+                        Periksa fisik barang pengganti. Unit bagus masuk stok (lensa custom tidak masuk stok, HPP nota yang terisi).
+                        Unit cacat otomatis diajukan sebagai retur baru.
                     </div>
                     <div id="pgItems"></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary">Verifikasi &amp; Masukkan ke Stok</button>
+                    <button type="submit" class="btn btn-primary">Verifikasi &amp; Simpan</button>
                 </div>
             </form>
         </div>
@@ -331,6 +356,7 @@
                     <div class="form-text">
                         Terisi otomatis dari harga beli di PO toko x jumlah retur, boleh diubah sesuai nota kredit supplier.
                         Total tagihan PO akan berkurang sebesar nominal ini dan tidak dicatat sebagai kerugian.
+                        Kalau yang diretur lensa custom, lensanya bisa dipesan ulang lewat PO baru.
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -347,7 +373,7 @@
 <div id="dataRetur" hidden
      data-po="{{ json_encode($poOpsi) }}"
      data-buka="{{ $bukaBuat ? '1' : '0' }}"
-     data-lama="{{ json_encode(['pembelian_id' => old('pembelian_id'), 'barang_id' => old('barang_id')]) }}"></div>
+     data-lama="{{ json_encode(['pembelian_id' => old('pembelian_id'), 'barang_id' => old('barang_id'), 'detail_pembelian_id' => old('detail_pembelian_id')]) }}"></div>
 @endsection
 
 @push('scripts')
@@ -359,6 +385,8 @@
     // ----- Buat Retur Baru -----
     const selPo     = document.getElementById('bPo');
     const selBarang = document.getElementById('bBarang');
+    const hBarang   = document.getElementById('bBarangId');
+    const hDetail   = document.getElementById('bDetailId');
     const infoStok  = document.getElementById('bStok');
     const inJumlah  = document.getElementById('bJumlah');
     const formBuat  = document.getElementById('formBuat');
@@ -370,26 +398,51 @@
         selPo.appendChild(o);
     });
 
-    function isiBarang(barangTerpilih) {
+    // Kunci pilihan: "d<id baris PO>" untuk lensa custom, "b<id barang>" untuk barang stok
+    function kunciDari(barangId, detailId) {
+        if (detailId) { return 'd' + detailId; }
+        return barangId ? 'b' + barangId : '';
+    }
+
+    function isiBarang(kunciTerpilih) {
         const po = poOpsi.find(function (p) { return String(p.id) === selPo.value; });
         selBarang.innerHTML = '<option value="">' + (po ? 'Pilih barang' : 'Pilih PO dulu') + '</option>';
         selBarang.disabled = !po;
         if (po) {
             po.items.forEach(function (it) {
                 const o = document.createElement('option');
-                o.value = it.id;
-                o.textContent = it.label + ' (stok ' + it.stok + ')';
+                o.value = it.key;
+                o.textContent = it.custom ? it.label : it.label + ' (stok ' + it.stok + ')';
+                o.dataset.barang = it.barang_id;
+                o.dataset.detail = it.detail_id || '';
+                o.dataset.custom = it.custom ? '1' : '0';
                 o.dataset.stok = it.stok;
                 selBarang.appendChild(o);
             });
         }
-        selBarang.value = barangTerpilih || '';
+        selBarang.value = kunciTerpilih || '';
         aturStok();
     }
 
     function aturStok() {
         const opt = selBarang.options[selBarang.selectedIndex];
-        const stok = opt && opt.dataset.stok ? parseInt(opt.dataset.stok) : null;
+        const ada = opt && opt.value !== '';
+
+        // Dua kolom tersembunyi inilah yang dikirim ke server
+        hBarang.value = ada ? opt.dataset.barang : '';
+        hDetail.value = ada ? opt.dataset.detail : '';
+
+        if (ada && opt.dataset.custom === '1') {
+            // Lensa custom: satu biji per retur, tidak ada stok yang berubah
+            infoStok.textContent = 'Lensa custom tidak punya stok, jadi stok tidak berubah. HPP nota kembali ke 0 sampai lensa pengganti atau PO baru diterima.';
+            inJumlah.value = 1;
+            inJumlah.readOnly = true;
+            inJumlah.removeAttribute('max');
+            return;
+        }
+
+        inJumlah.readOnly = false;
+        const stok = ada && opt.dataset.stok ? parseInt(opt.dataset.stok) : null;
         if (stok === null) {
             infoStok.textContent = 'Stok layak jual akan berkurang sebanyak jumlah yang diretur.';
             inJumlah.removeAttribute('max');
@@ -407,7 +460,7 @@
     if (dataEl.dataset.buka === '1') {
         const lama = JSON.parse(dataEl.dataset.lama || '{}');
         selPo.value = lama.pembelian_id || '';
-        isiBarang(lama.barang_id || '');
+        isiBarang(kunciDari(lama.barang_id, lama.detail_pembelian_id));
         bootstrap.Modal.getOrCreateInstance(document.getElementById('modalBuat')).show();
     }
 
@@ -430,6 +483,13 @@
             judul.textContent = it.label + ' (dikembalikan ' + it.jumlah + ' pcs)';
             kotak.appendChild(judul);
 
+            if (it.custom) {
+                const catatan = document.createElement('div');
+                catatan.className = 'rt-sub';
+                catatan.textContent = 'Lensa custom: tidak masuk stok. Kalau pengganti bagus, HPP nota terisi dari harga beli PO.';
+                kotak.appendChild(catatan);
+            }
+
             const grid = document.createElement('div');
             grid.className = 'row g-2 mt-1';
             grid.innerHTML =
@@ -438,7 +498,7 @@
                 '<div class="col-md-6"><label class="form-label" style="font-size:.8rem">Jumlah cacat:</label>' +
                 '<input type="number" name="item[' + it.id + '][cacat]" min="0" value="0" required class="form-control"></div>' +
                 '<div class="col-12"><label class="form-label" style="font-size:.8rem">Keterangan cacat (wajib kalau ada yang cacat):</label>' +
-                '<input type="text" name="item[' + it.id + '][keterangan]" maxlength="255" class="form-control"></div>';
+                '<input type="text" name="item[' + it.id + '][keterangan]" maxlength="200" class="form-control"></div>';
             kotak.appendChild(grid);
 
             wadah.appendChild(kotak);
