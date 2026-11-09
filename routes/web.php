@@ -35,7 +35,6 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    Route::resource('supplier', SupplierController::class)->except('show','create','edit');
     Route::resource('customer', CustomerController::class)->except('show');
     Route::post('customer/{customer}/refraksi', [RefraksiController::class, 'store'])->name('refraksi.store');
 
@@ -102,6 +101,9 @@ Route::middleware('auth')->group(function () {
         // Penjualan: POS, riwayat, dan nota hanya untuk Owner (uang masuk dicatat Owner sendiri)
         Route::resource('penjualan', PenjualanController::class)->only(['index', 'create', 'store', 'show']);
         Route::post('penjualan/{penjualan}/tutup', [PenjualanController::class, 'tutup'])->name('penjualan.tutup');
+
+        // Supplier: daftar, tambah, ubah, hapus hanya untuk Owner
+        Route::resource('supplier', SupplierController::class)->except('show','create','edit');
 
         // Pesanan: tombol "Selesai (diambil)" dan input pelunasan hanya Owner
         Route::post('/pesanan/{pesanan}/selesai', [PesananController::class, 'selesaikan'])->name('pesanan.selesai');

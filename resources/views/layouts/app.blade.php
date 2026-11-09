@@ -262,7 +262,7 @@
             ['Pembelian Supplier',  'bi-truck',           'pembelian.index', 'pembelian.*'],
             ['Pesanan Kacamata',    'bi-eyeglasses',      'pesanan.index',  'pesanan.*'],
             ['Data Pelanggan',      'bi-people',          'customer.index', 'customer.*'],
-            ['Data Supplier',       'bi-shop',            'supplier.index',   'supplier.*'],
+            ...($isOwner ? [['Data Supplier',       'bi-shop',            'supplier.index',   'supplier.*']] : []),
             ['Modul Retur',         'bi-arrow-left-right', $isOwner ? 'retur.supplier' : 'retur.customer', 'retur.*'],
             ...($isOwner ? [['Kerugian Operasional', 'bi-exclamation-diamond', 'kerugian.index', 'kerugian.*']] : []),
             ...($isOwner ? [['Laporan Laba Rugi',    'bi-graph-up',            'laporan.labarugi', 'laporan.*']] : []),
