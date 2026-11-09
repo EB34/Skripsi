@@ -14,6 +14,10 @@
     .status-po.menunggu { background: #d6ecff; color: #0b4f8a; border-color: #8fc4f0; }
     .status-po.sebagian { background: #ffeea0; color: #7a5a00; border-color: #e6c84a; }
     .status-po.lengkap  { background: #d6f5d6; color: #1b7a1b; border-color: #8fd48f; }
+    .badge-custom {
+        display: inline-block; font-size: .65rem; font-weight: 600; padding: 1px 7px;
+        border-radius: 6px; background: #e8dcff; color: #4b2a8a; border: 1px solid #c4aef0;
+    }
     .btn-teal {
         background: #2a86a8; color: #fff; border: 0; border-radius: 6px;
         padding: 6px 12px; font-size: .78rem; font-weight: 600; text-decoration: none; cursor: pointer;
@@ -27,11 +31,7 @@
 
     /* Popup checklist: hanya bagian isi (.modal-body) yang bisa di-scroll,
        header dan footer tetap terlihat di dalam layar */
-    .modal.modal-checklist {
-        overflow: hidden;
-    }
-        /* Popup checklist: hanya bagian isi (.modal-body) yang bisa di-scroll,
-       header dan footer tetap terlihat di dalam layar */
+    .modal.modal-checklist { overflow: hidden; }
     .modal-checklist .modal-dialog {
         max-height: calc(100vh - 2rem);
         margin: 1rem auto;
@@ -50,9 +50,7 @@
         overflow: hidden;
     }
     .modal-checklist .modal-header,
-    .modal-checklist .modal-footer {
-        flex-shrink: 0;
-    }
+    .modal-checklist .modal-footer { flex-shrink: 0; }
     .modal-checklist .modal-body {
         flex: 1 1 auto;
         min-height: 0;
@@ -96,9 +94,6 @@
         'diterima_lengkap'    => ['Diterima Lengkap', 'lengkap'],
     ];
 
-    // Harga beli, total tagihan, dan pembuatan PO hanya untuk Owner
-    $isOwner = auth()->user()->isOwner();
-
     // True kalau form "Buat PO" tadi ditolak validasi, supaya popup-nya dibuka lagi
     $bukaModalBuat = $isOwner && old('_form') === 'buat';
 @endphp
@@ -138,7 +133,7 @@
                             <div class="mono fw-semibold">{{ $p->nomor_po }}</div>
                             <div class="text-muted">{{ $p->tanggal->format('d M Y') }}</div>
                             @if ($p->nomor_invoice_supplier)
-                            <div class="text-muted" style="font-size:.7rem">Invoice: {{ $p->nomor_invoice_supplier }}</div>
+                                <div class="text-muted" style="font-size:.7rem">Invoice: {{ $p->nomor_invoice_supplier }}</div>
                             @endif
                         </td>
                         <td>{{ $p->supplier->nama_perusahaan }}</td>
@@ -147,6 +142,12 @@
                                 <div>
                                     {{ $d->jumlah_dipesan }} pcs {{ $d->barang->merk }}
                                     <span class="mono text-muted">({{ $d->barang->kode_model }})</span>
+                                    @if ($d->detail_penjualan_id)
+                                        <span class="badge-custom">Custom</span>
+                                        <div style="font-size:.7rem" class="text-muted">
+                                            {{ $d->label_nota }} | Ukuran: {{ $d->keterangan_ukuran ?: '-' }}
+                                        </div>
+                                    @endif
                                     @if ($p->status !== 'menunggu_pengiriman')
                                         <div style="font-size:.7rem" class="text-muted">
                                             Diterima {{ $d->jumlah_diterima }} pcs,
@@ -196,7 +197,7 @@
     {{ $pembelian->links() }}
 </div>
 
-{{-- ===== Popup: Buat Pesanan Pembelian (hanya Owner, karena berisi harga beli) ===== --}}
+{{-- ===== Popup: Buat Pesanan Pembelian (hanya Owner) ===== --}}
 @if ($isOwner)
 <div class="modal fade" id="modalBuatPo" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -223,11 +224,10 @@
                         </div>
                     @endif
 
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Supplier</label>
                             <div class="sup-combo" id="sup-combo">
-                                {{-- Nilai yang dikirim ke server: id supplier --}}
                                 <input type="hidden" name="supplier_id" id="sup-id" value="{{ old('supplier_id') }}">
 
                                 <input type="text" id="sup-cari" class="form-control" autocomplete="off"
@@ -262,11 +262,33 @@
                         </div>
                     </div>
 
+                    {{-- Jenis PO: barang stok dan lensa custom dipisah --}}
+                    <div class="mb-3">
+                        <label class="form-label d-block">Jenis Pesanan</label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="jenis" id="jenis-stok" value="stok"
+                                   {{ old('jenis', 'stok') === 'stok' ? 'checked' : '' }}>
+                            <label class="form-check-label" for="jenis-stok">Barang Stok</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="jenis" id="jenis-custom" value="custom"
+                                   {{ old('jenis') === 'custom' ? 'checked' : '' }}>
+                            <label class="form-check-label" for="jenis-custom">Lensa Custom (dari nota)</label>
+                        </div>
+                        <div class="form-text d-none" id="hint-custom">
+                            Satu baris = satu biji lensa custom dari satu nota. Harga beli ini akan menjadi HPP nota
+                            setelah PO diverifikasi.
+                        </div>
+                        <div class="form-text text-danger d-none" id="kosong-custom">
+                            Tidak ada lensa custom yang perlu dipesan (nota berjalan yang belum punya PO).
+                        </div>
+                    </div>
+
                     <div class="table-responsive">
                         <table class="table align-middle">
                             <thead class="table-light">
                                 <tr>
-                                    <th>Barang</th>
+                                    <th id="th-barang">Barang</th>
                                     <th style="width: 120px">Jumlah</th>
                                     <th style="width: 190px">Harga Beli (Rp)</th>
                                     <th style="width: 170px" class="text-end">Subtotal</th>
@@ -285,7 +307,7 @@
                     </div>
 
                     <button type="button" id="tambah-baris" class="btn-abu">
-                        <i class="bi bi-plus-lg"></i> Tambah Barang
+                        <i class="bi bi-plus-lg"></i> <span id="teks-tambah">Tambah Barang</span>
                     </button>
                 </div>
 
@@ -299,7 +321,7 @@
 </div>
 @endif
 
-{{-- ===== Popup checklist: satu popup per PO yang masih menunggu (Owner dan Petugas) ===== --}}
+{{-- ===== Popup checklist: satu popup per PO yang masih menunggu (Owner dan Staff) ===== --}}
 @foreach ($pembelian as $p)
     @if ($p->status === 'menunggu_pengiriman')
         <div class="modal fade modal-checklist" id="modalTerima{{ $p->id }}" tabindex="-1" aria-hidden="true">
@@ -332,17 +354,25 @@
                             <div class="mb-3">
                                 <label class="form-label" style="font-size:.8rem">No. Invoice dari Supplier (opsional):</label>
                                 <input type="text" name="nomor_invoice_supplier" maxlength="100" class="form-control"
-                                placeholder="Nomor invoice dari supplier, beda dengan nomor PO">
+                                       placeholder="Nomor invoice dari supplier, beda dengan nomor PO">
                                 <div class="form-text">Dipakai sebagai No. Referensi Invoice di surat jalan retur.</div>
-</div>
+                            </div>
+
                             @foreach ($p->detail as $d)
+                                @php $isCustom = $d->detail_penjualan_id !== null; @endphp
                                 <div class="kotak-item">
                                     <div class="d-flex justify-content-between">
                                         <div>
                                             <div class="mono text-success" style="font-size:.75rem">Kode Produk</div>
                                             <div class="fw-semibold">{{ $d->barang->merk }}
                                                 <span class="mono text-muted">({{ $d->barang->kode_model }})</span>
+                                                @if ($isCustom) <span class="badge-custom">Custom</span> @endif
                                             </div>
+                                            @if ($isCustom)
+                                                <div class="text-muted" style="font-size:.72rem">
+                                                    {{ $d->label_nota }}<br>Ukuran: {{ $d->keterangan_ukuran ?: '-' }}
+                                                </div>
+                                            @endif
                                         </div>
                                         <div style="font-size:.8rem">
                                             <strong>Dipesan:</strong> <span class="mono">{{ $d->jumlah_dipesan }} pcs</span>
@@ -357,8 +387,14 @@
                                         </div>
                                         <div class="col-md-6">
                                             <label class="form-label" style="font-size:.8rem">Jumlah Cacat:</label>
-                                            <input type="number" name="item[{{ $d->id }}][cacat]"
-                                                   min="0" value="0" required class="form-control">
+                                            @if ($isCustom)
+                                                <input type="number" name="item[{{ $d->id }}][cacat]"
+                                                       value="0" readonly class="form-control">
+                                                <div class="form-text">Lensa custom tidak masuk stok, jadi tidak ada retur otomatis.</div>
+                                            @else
+                                                <input type="number" name="item[{{ $d->id }}][cacat]"
+                                                       min="0" value="0" required class="form-control">
+                                            @endif
                                         </div>
                                         <div class="col-12">
                                             <label class="form-label" style="font-size:.8rem">
@@ -388,27 +424,37 @@
     @endif
 @endforeach
 
-{{-- Data untuk JavaScript popup Buat PO (hanya Owner) --}}
+{{-- Data untuk JavaScript dititipkan di atribut HTML (hanya Owner yang butuh) --}}
 @if ($isOwner)
-@php
-    $barangJs = $barang->map(fn ($b) => ['id' => $b->id, 'teks' => $b->kode_model . ' - ' . $b->merk])->values();
-@endphp
-<div id="data-pembelian" hidden
-     data-barang="{{ json_encode($barangJs) }}"
-     data-lama="{{ json_encode($bukaModalBuat ? array_values(old('items', [])) : []) }}"
-     data-buka="{{ $bukaModalBuat ? '1' : '0' }}"></div>
+    @php
+        $barangJs = $barang->map(fn ($b) => ['id' => $b->id, 'teks' => $b->kode_model . ' - ' . $b->merk])->values();
+        $customJs = $custom->map(fn ($c) => [
+            'id'   => $c->id,
+            'teks' => $c->label_nota . ' | Ukuran: ' . ($c->keterangan ?: '-'),
+        ])->values();
+    @endphp
+    <div id="data-pembelian" hidden
+         data-barang="{{ json_encode($barangJs) }}"
+         data-custom="{{ json_encode($customJs) }}"
+         data-lama="{{ json_encode($bukaModalBuat ? array_values(old('items', [])) : []) }}"
+         data-buka="{{ $bukaModalBuat ? '1' : '0' }}"></div>
 @endif
 @endsection
 
-@push('scripts')
 @if ($isOwner)
+@push('scripts')
 <script>
     const dataEl       = document.getElementById('data-pembelian');
     const daftarBarang = JSON.parse(dataEl.dataset.barang);
+    const daftarCustom = JSON.parse(dataEl.dataset.custom);
     const isianLama    = JSON.parse(dataEl.dataset.lama);
 
     const body = document.getElementById('baris-barang');
     let indeks = 0;
+
+    function jenisAktif() {
+        return document.querySelector('input[name="jenis"]:checked').value;
+    }
 
     function rupiah(angka) {
         return 'Rp ' + Math.round(angka).toLocaleString('id-ID');
@@ -426,55 +472,119 @@
         document.getElementById('total-po').textContent = rupiah(total);
     }
 
-    function tambahBaris(data = {}) {
-        const i  = indeks++;
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>
-                <select name="items[${i}][barang_id]" class="form-select" required>
-                    <option value="">-- Pilih barang --</option>
-                </select>
-            </td>
-            <td><input type="number" name="items[${i}][jumlah]" class="form-control jumlah" min="1" required></td>
-            <td><input type="number" name="items[${i}][harga_beli]" class="form-control harga" min="0" step="any" required></td>
-            <td class="subtotal text-end">Rp 0</td>
-            <td><button type="button" class="icon-btn hapus" title="Hapus baris"><i class="bi bi-x-lg"></i></button></td>
-        `;
-
-        const pilihan = tr.querySelector('select');
-        daftarBarang.forEach(b => {
-            const opsi = document.createElement('option');
-            opsi.value = b.id;
-            opsi.textContent = b.teks;
-            pilihan.appendChild(opsi);
+    // Lensa custom yang sudah dipilih di satu baris dinonaktifkan di baris lain
+    function tandaiTerpakai() {
+        const dipakai = Array.from(body.querySelectorAll('.pilih-custom')).map(s => s.value).filter(Boolean);
+        body.querySelectorAll('.pilih-custom').forEach(sel => {
+            Array.from(sel.options).forEach(o => {
+                o.disabled = o.value !== '' && o.value !== sel.value && dipakai.includes(o.value);
+            });
         });
+    }
 
-        pilihan.value = data.barang_id ?? '';
-        tr.querySelector('.jumlah').value = data.jumlah ?? '';
-        tr.querySelector('.harga').value  = data.harga_beli ?? '';
+    function tambahBaris(data = {}) {
+        const i      = indeks++;
+        const custom = jenisAktif() === 'custom';
+        const tr     = document.createElement('tr');
+
+        if (custom) {
+            tr.innerHTML = `
+                <td>
+                    <select name="items[${i}][detail_penjualan_id]" class="form-select pilih-custom" required>
+                        <option value="">-- Pilih lensa custom dari nota --</option>
+                    </select>
+                </td>
+                <td><input type="text" class="form-control jumlah" value="1" readonly></td>
+                <td><input type="number" name="items[${i}][harga_beli]" class="form-control harga" min="0" step="any" required></td>
+                <td class="subtotal text-end">Rp 0</td>
+                <td><button type="button" class="icon-btn hapus" title="Hapus baris"><i class="bi bi-x-lg"></i></button></td>
+            `;
+            const pilihan = tr.querySelector('select');
+            daftarCustom.forEach(c => {
+                const opsi = document.createElement('option');
+                opsi.value = c.id;
+                opsi.textContent = c.teks;
+                pilihan.appendChild(opsi);
+            });
+            pilihan.value = data.detail_penjualan_id ?? '';
+        } else {
+            tr.innerHTML = `
+                <td>
+                    <select name="items[${i}][barang_id]" class="form-select" required>
+                        <option value="">-- Pilih barang --</option>
+                    </select>
+                </td>
+                <td><input type="number" name="items[${i}][jumlah]" class="form-control jumlah" min="1" required></td>
+                <td><input type="number" name="items[${i}][harga_beli]" class="form-control harga" min="0" step="any" required></td>
+                <td class="subtotal text-end">Rp 0</td>
+                <td><button type="button" class="icon-btn hapus" title="Hapus baris"><i class="bi bi-x-lg"></i></button></td>
+            `;
+            const pilihan = tr.querySelector('select');
+            daftarBarang.forEach(b => {
+                const opsi = document.createElement('option');
+                opsi.value = b.id;
+                opsi.textContent = b.teks;
+                pilihan.appendChild(opsi);
+            });
+            pilihan.value = data.barang_id ?? '';
+            tr.querySelector('.jumlah').value = data.jumlah ?? '';
+        }
+
+        tr.querySelector('.harga').value = data.harga_beli ?? '';
 
         body.appendChild(tr);
+        tandaiTerpakai();
         hitung();
     }
 
+    // Ganti tampilan sesuai jenis PO (kosongkan baris, mulai dari satu baris baru)
+    function aturJenis() {
+        const custom = jenisAktif() === 'custom';
+        document.getElementById('hint-custom').classList.toggle('d-none', !custom);
+        document.getElementById('kosong-custom').classList.toggle('d-none', !(custom && daftarCustom.length === 0));
+        document.getElementById('th-barang').textContent = custom ? 'Lensa Custom (nota & ukuran)' : 'Barang';
+        document.getElementById('teks-tambah').textContent = custom ? 'Tambah Lensa Custom' : 'Tambah Barang';
+        body.innerHTML = '';
+        indeks = 0;
+        tambahBaris();
+    }
+
+    document.querySelectorAll('input[name="jenis"]').forEach(r => r.addEventListener('change', aturJenis));
+
     body.addEventListener('input', hitung);
+    body.addEventListener('change', e => {
+        if (e.target.classList.contains('pilih-custom')) { tandaiTerpakai(); }
+    });
 
     body.addEventListener('click', e => {
         const tombol = e.target.closest('.hapus');
         if (tombol && body.querySelectorAll('tr').length > 1) {
             tombol.closest('tr').remove();
+            tandaiTerpakai();
             hitung();
         }
     });
 
-    document.getElementById('tambah-baris').addEventListener('click', () => tambahBaris());
+    document.getElementById('tambah-baris').addEventListener('click', () => {
+        // Jumlah baris custom tidak boleh melebihi jumlah lensa custom yang tersedia
+        if (jenisAktif() === 'custom' && body.querySelectorAll('tr').length >= daftarCustom.length) { return; }
+        tambahBaris();
+    });
 
     // Isi awal: pulihkan isian lama kalau validasi gagal, atau satu baris kosong
-    if (isianLama.length) {
-        isianLama.forEach(tambahBaris);
-    } else {
-        tambahBaris();
-    }
+    (function () {
+        const custom = jenisAktif() === 'custom';
+        document.getElementById('hint-custom').classList.toggle('d-none', !custom);
+        document.getElementById('kosong-custom').classList.toggle('d-none', !(custom && daftarCustom.length === 0));
+        document.getElementById('th-barang').textContent = custom ? 'Lensa Custom (nota & ukuran)' : 'Barang';
+        document.getElementById('teks-tambah').textContent = custom ? 'Tambah Lensa Custom' : 'Tambah Barang';
+
+        if (isianLama.length) {
+            isianLama.forEach(tambahBaris);
+        } else {
+            tambahBaris();
+        }
+    })();
 
     // Kalau form Buat PO ditolak validasi, buka lagi popup-nya otomatis
     if (dataEl.dataset.buka === '1') {
@@ -499,7 +609,6 @@
         return opsi.filter(function (o) { return !o.classList.contains('d-none'); });
     }
 
-    // Isi kolom ketik sesuai supplier yang benar-benar terpilih
     function sinkron() {
         var teks = '';
         opsi.forEach(function (o) {
@@ -549,13 +658,13 @@
         } else if (e.key === 'ArrowUp') {
             e.preventDefault(); buka(); aturSorot(sorot < 0 ? -1 : sorot - 1);
         } else if (e.key === 'Enter') {
-            e.preventDefault();   // Enter tidak boleh mengirim form
+            e.preventDefault();
             if (list.classList.contains('d-none')) { return; }
             var v = terlihat();
             var target = sorot >= 0 ? v[sorot] : v[0];
             if (target) { pilih(target); }
         } else if (e.key === 'Escape') {
-            e.stopPropagation();  // Escape hanya menutup daftar, bukan seluruh popup
+            e.stopPropagation();
             tutup();
         }
     });
@@ -574,7 +683,6 @@
         if (!combo.contains(e.relatedTarget)) { tutup(); }
     });
 
-    // Supplier wajib dipilih sebelum form dikirim
     form.addEventListener('submit', function (e) {
         if (hidden.value === '') {
             e.preventDefault();
@@ -583,7 +691,6 @@
         }
     });
 
-    // Popup ditutup: kosongkan pilihan supaya PO berikutnya mulai dari awal
     if (modalEl) {
         modalEl.addEventListener('hidden.bs.modal', function () {
             hidden.value = '';
@@ -594,5 +701,5 @@
     sinkron();
 })();
 </script>
-@endif
 @endpush
+@endif

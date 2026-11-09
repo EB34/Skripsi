@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Barang;
+use App\Models\DetailPembelian;
+use App\Models\DetailPenjualan;
 use App\Models\DetailReturSupplier;
 use App\Models\Pembelian;
 use App\Models\ReturSupplier;
@@ -14,71 +16,154 @@ use RuntimeException;
 
 class PembelianController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $pembelian = Pembelian::with(['supplier', 'detail.barang', 'retur'])
+        $isOwner = $request->user()->isOwner();
+
+        $pembelian = Pembelian::with([
+                'supplier', 'detail.barang', 'retur',
+                'detail.detailPenjualan.penjualan.customer',
+            ])
             ->latest('tanggal')
             ->latest('id')
             ->paginate(10);
 
-        return view('pembelian.index', [
-            'pembelian' => $pembelian,
-            'supplier'  => Supplier::with('kontak')->orderBy('nama_perusahaan')->get(),     // untuk popup buat PO
-            'barang'    => Barang::orderBy('kode_model')->get(),  // untuk popup buat PO
-        ]);
+        // Data untuk popup Buat PO: hanya Owner yang boleh membuat PO, jadi staff tidak perlu datanya
+        $supplier = collect();
+        $barang   = collect();
+        $custom   = collect();
+
+        if ($isOwner) {
+            $supplier = Supplier::with('kontak')->orderBy('nama_perusahaan')->get();
+
+            // PO barang stok: lensa custom tidak ikut (dipesan lewat jenis "Lensa Custom")
+            $barang = Barang::where('tanpa_stok', false)->orderBy('kode_model')->get();
+
+            // Biji lensa custom yang masih menunggu dipesan: nota berjalan dan belum punya PO
+            $custom = DetailPenjualan::with(['barang', 'penjualan.customer'])
+                ->whereHas('barang', fn ($q) => $q->where('tanpa_stok', true))
+                ->whereHas('penjualan', fn ($q) => $q->where('status', 'berjalan'))
+                ->whereDoesntHave('pembelianCustom')
+                ->orderBy('id')
+                ->get();
+        }
+
+        return view('pembelian.index', compact('pembelian', 'supplier', 'barang', 'custom', 'isOwner'));
     }
 
     public function store(Request $request)
     {
-        $data = $request->validate([
+        $custom = $request->input('jenis') === 'custom';
+
+        $rules = [
             'supplier_id'        => ['required', 'exists:supplier,id'],
             'tanggal'            => ['required', 'date'],
+            'jenis'              => ['required', 'in:stok,custom'],
             'items'              => ['required', 'array', 'min:1'],
-            'items.*.barang_id'  => ['required', 'exists:barang,id'],
-            'items.*.jumlah'     => ['required', 'integer', 'min:1'],
             'items.*.harga_beli' => ['required', 'numeric', 'min:0'],
-        ], [
+        ];
+
+        $rules += $custom
+            ? ['items.*.detail_penjualan_id' => ['required', 'distinct', 'exists:detail_penjualan,id']]
+            : [
+                'items.*.barang_id' => ['required', 'exists:barang,id'],
+                'items.*.jumlah'    => ['required', 'integer', 'min:1'],
+            ];
+
+        $data = $request->validate($rules, [
             'items.required' => 'Tambahkan minimal satu barang.',
         ]);
 
-        $pembelian = DB::transaction(function () use ($data) {
-            // Nomor PO: PO-ddmmyyyy-urutan di hari itu, contoh PO-31082026-1
-            $urut  = Pembelian::whereDate('tanggal', $data['tanggal'])->count() + 1;
-            $nomor = 'PO-' . date('dmY', strtotime($data['tanggal'])) . '-' . $urut;
+        try {
+            $pembelian = DB::transaction(function () use ($data, $custom) {
+                if ($custom) {
+                    $ids  = collect($data['items'])->pluck('detail_penjualan_id');
+                    $baris = DetailPenjualan::with(['barang', 'penjualan'])
+                        ->whereIn('id', $ids)
+                        ->lockForUpdate()
+                        ->get()
+                        ->keyBy('id');
 
-            $p = Pembelian::create([
-                'nomor_po'    => $nomor,
-                'tanggal'     => $data['tanggal'],
-                'supplier_id' => $data['supplier_id'],
-                'status'      => 'menunggu_pengiriman',
-            ]);
+                    foreach ($data['items'] as $item) {
+                        $dp = $baris[$item['detail_penjualan_id']] ?? null;
 
-            foreach ($data['items'] as $item) {
-                $p->detail()->create([
-                    'barang_id'      => $item['barang_id'],
-                    'jumlah_dipesan' => $item['jumlah'],
-                    'harga_beli'     => $item['harga_beli'],
-                    'sisa_jumlah'    => 0,
+                        if (! $dp || ! $dp->barang->tanpa_stok) {
+                            throw new RuntimeException('Ada baris yang bukan lensa custom.');
+                        }
+                        if ($dp->penjualan->status !== 'berjalan') {
+                            throw new RuntimeException("{$dp->label_nota}: nota tidak lagi berjalan, tidak bisa dipesan.");
+                        }
+                        if (DetailPembelian::where('detail_penjualan_id', $dp->id)->exists()) {
+                            throw new RuntimeException("{$dp->label_nota}: lensa ini sudah pernah dipesan ke supplier.");
+                        }
+                    }
+                } else {
+                    $ada = Barang::whereIn('id', collect($data['items'])->pluck('barang_id'))
+                        ->where('tanpa_stok', true)->exists();
+                    if ($ada) {
+                        throw new RuntimeException('Lensa custom dipesan lewat jenis "Lensa Custom", bukan sebagai barang stok.');
+                    }
+                }
+
+                // Nomor PO: PO-ddmmyyyy-urutan di hari itu, contoh PO-31082026-1
+                $urut  = Pembelian::whereDate('tanggal', $data['tanggal'])->count() + 1;
+                $nomor = 'PO-' . date('dmY', strtotime($data['tanggal'])) . '-' . $urut;
+
+                $p = Pembelian::create([
+                    'nomor_po'    => $nomor,
+                    'tanggal'     => $data['tanggal'],
+                    'supplier_id' => $data['supplier_id'],
+                    'status'      => 'menunggu_pengiriman',
                 ]);
-            }
 
-            return $p;
-        });
+                foreach ($data['items'] as $item) {
+                    if ($custom) {
+                        $dp = $baris[$item['detail_penjualan_id']];
+                        $p->detail()->create([
+                            'barang_id'           => $dp->barang_id,
+                            'detail_penjualan_id' => $dp->id,
+                            'keterangan_ukuran'   => $dp->keterangan,
+                            'jumlah_dipesan'      => 1,
+                            'harga_beli'          => $item['harga_beli'],
+                            'sisa_jumlah'         => 0,
+                        ]);
+                    } else {
+                        $p->detail()->create([
+                            'barang_id'      => $item['barang_id'],
+                            'jumlah_dipesan' => $item['jumlah'],
+                            'harga_beli'     => $item['harga_beli'],
+                            'sisa_jumlah'    => 0,
+                        ]);
+                    }
+                }
+
+                return $p;
+            });
+        } catch (RuntimeException $e) {
+            // withErrors + withInput supaya popup Buat PO terbuka lagi dengan isian tadi
+            return back()->withInput()->withErrors(['items' => $e->getMessage()]);
+        }
 
         return redirect()->route('pembelian.index')
             ->with('success', "Pesanan {$pembelian->nomor_po} berhasil dibuat.");
     }
 
-    public function show(Pembelian $pembelian)
+    public function show(Request $request, Pembelian $pembelian)
     {
-        $pembelian->load(['supplier', 'detail.barang', 'retur.detail.barang']);
+        $pembelian->load([
+            'supplier', 'detail.barang', 'retur.detail.barang',
+            'detail.detailPenjualan.penjualan.customer',
+        ]);
 
-        return view('pembelian.show', compact('pembelian'));
+        $isOwner = $request->user()->isOwner();
+
+        return view('pembelian.show', compact('pembelian', 'isOwner'));
     }
 
     /**
-     * Verifikasi penerimaan fisik (popup checklist): stok masuk, barang cacat otomatis diretur.
-     * No. invoice dari supplier (opsional di sini) disimpan di PO dan dicetak di surat jalan retur.
+     * Verifikasi penerimaan fisik (popup checklist).
+     * Barang stok: stok masuk, cacat otomatis diretur.
+     * Lensa custom: tidak masuk stok, HPP baris nota diisi dari harga beli PO.
      */
     public function terima(Request $request, Pembelian $pembelian, StokService $stok)
     {
@@ -111,6 +196,9 @@ class PembelianController extends Controller
             if ($cacat > $diterima) {
                 return back()->with('error', "{$kode}: jumlah cacat tidak boleh lebih besar dari jumlah diterima.");
             }
+            if ($d->detail_penjualan_id && $cacat > 0) {
+                return back()->with('error', "{$kode} (custom): lensa custom cacat belum bisa dicatat di checklist ini. Hubungi Owner.");
+            }
         }
 
         try {
@@ -129,26 +217,45 @@ class PembelianController extends Controller
                     $in       = $request->input("item.{$d->id}");
                     $diterima = (int) $in['diterima'];
                     $cacat    = (int) $in['cacat'];
-                    $bagus    = $diterima - $cacat;      // hanya unit bagus yang masuk stok
+                    $bagus    = $diterima - $cacat;
+                    $isCustom = $d->detail_penjualan_id !== null;
 
-                    $d->update([
-                        'jumlah_diterima'  => $diterima,
-                        'jumlah_cacat'     => $cacat,
-                        'keterangan_cacat' => $in['keterangan'] ?? null,
-                        'sisa_jumlah'      => $bagus,     // batch FIFO baru
-                        'tanggal_masuk'    => $bagus > 0 ? now() : null,
-                    ]);
+                    if ($isCustom) {
+                        // Lensa custom: bukan batch FIFO, tidak masuk stok
+                        $d->update([
+                            'jumlah_diterima'  => $diterima,
+                            'jumlah_cacat'     => 0,
+                            'keterangan_cacat' => null,
+                            'sisa_jumlah'      => 0,
+                            'tanggal_masuk'    => null,
+                        ]);
 
-                    if ($bagus > 0) {
-                        $stok->barangMasuk($d->barang_id, $bagus, 'pembelian', $p->id);
+                        // HPP baris nota = harga beli x jumlah diterima
+                        if ($diterima > 0) {
+                            DetailPenjualan::whereKey($d->detail_penjualan_id)
+                                ->update(['hpp' => (float) $d->harga_beli * $diterima]);
+                        }
+                    } else {
+                        $d->update([
+                            'jumlah_diterima'  => $diterima,
+                            'jumlah_cacat'     => $cacat,
+                            'keterangan_cacat' => $in['keterangan'] ?? null,
+                            'sisa_jumlah'      => $bagus,     // batch FIFO baru
+                            'tanggal_masuk'    => $bagus > 0 ? now() : null,
+                        ]);
+
+                        if ($bagus > 0) {
+                            $stok->barangMasuk($d->barang_id, $bagus, 'pembelian', $p->id);
+                        }
+                        if ($cacat > 0) {
+                            $returItems[] = [
+                                'barang_id'  => $d->barang_id,
+                                'jumlah'     => $cacat,
+                                'keterangan' => $in['keterangan'] ?? null,
+                            ];
+                        }
                     }
-                    if ($cacat > 0) {
-                        $returItems[] = [
-                            'barang_id'  => $d->barang_id,
-                            'jumlah'     => $cacat,
-                            'keterangan' => $in['keterangan'] ?? null,
-                        ];
-                    }
+
                     if ($diterima < $d->jumlah_dipesan || $cacat > 0) {
                         $lengkap = false;
                     }

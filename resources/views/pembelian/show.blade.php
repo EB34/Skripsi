@@ -3,11 +3,6 @@
 @section('title', 'Hasil Penerimaan')
 
 @section('content')
-@php
-    // Harga beli hanya terlihat oleh Owner
-    $isOwner = auth()->user()->isOwner();
-@endphp
-
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <h1 class="page-title">Hasil Penerimaan {{ $pembelian->nomor_po }}</h1>
@@ -39,12 +34,24 @@
             </thead>
             <tbody>
                 @foreach ($pembelian->detail as $d)
+                    @php $isCustom = $d->detail_penjualan_id !== null; @endphp
                     <tr>
-                        <td>{{ $d->barang->merk }} <span class="mono text-muted">({{ $d->barang->kode_model }})</span></td>
+                        <td>
+                            {{ $d->barang->merk }} <span class="mono text-muted">({{ $d->barang->kode_model }})</span>
+                            @if ($isCustom)
+                                <span class="badge bg-secondary">Custom</span>
+                                <div class="text-muted" style="font-size:.72rem">
+                                    {{ $d->label_nota }}<br>Ukuran: {{ $d->keterangan_ukuran ?: '-' }}
+                                    @if ($isOwner && $d->detailPenjualan)
+                                        <br>HPP nota terisi: Rp {{ number_format($d->detailPenjualan->hpp, 0, ',', '.') }}
+                                    @endif
+                                </div>
+                            @endif
+                        </td>
                         <td class="text-end">{{ $d->jumlah_dipesan }}</td>
                         <td class="text-end">{{ $d->jumlah_diterima }}</td>
                         <td class="text-end {{ $d->jumlah_cacat > 0 ? 'text-danger fw-semibold' : '' }}">{{ $d->jumlah_cacat }}</td>
-                        <td class="text-end">{{ $d->jumlah_diterima - $d->jumlah_cacat }}</td>
+                        <td class="text-end">{{ $isCustom ? '-' : $d->jumlah_diterima - $d->jumlah_cacat }}</td>
                         @if ($isOwner)
                             <td class="text-end">Rp {{ number_format($d->harga_beli, 0, ',', '.') }}</td>
                         @endif
