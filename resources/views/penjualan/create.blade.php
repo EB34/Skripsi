@@ -259,6 +259,12 @@
             <small id="info-dp"></small>
         </div>
 
+        <div class="mb-3">
+            <label class="form-label" style="font-size:.8rem">Tanggal &amp; jam transaksi (kosongkan = sekarang)</label>
+            <input type="datetime-local" name="tanggal_transaksi" class="form-control form-control-sm"
+            max="{{ now()->format('Y-m-d\TH:i') }}" value="{{ old('tanggal_transaksi') }}">
+</div>
+
         <div class="fw-semibold" style="font-size:.8rem">Pilih Metode Pembayaran:</div>
         @php
             $daftarMetode = [

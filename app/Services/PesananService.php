@@ -174,9 +174,10 @@ class PesananService
      * kalau tidak ada di nota, berarti milik pelanggan (bawaan).
      * Melempar RuntimeException kalau aturan dilanggar (pemanggil menangkapnya).
      */
-    public function buatDariNota(Penjualan $penjualan, array $data, ?int $userId = null): PesananKacamata
+    public function buatDariNota(Penjualan $penjualan, array $data, ?int $userId = null, ?\Carbon\Carbon $waktu = null): PesananKacamata
     {
-        return DB::transaction(function () use ($penjualan, $data, $userId) {
+        $waktu ??= now();
+        return DB::transaction(function () use ($penjualan, $data, $userId, $waktu) {
             $nota = Penjualan::with('detail.barang')->lockForUpdate()->findOrFail($penjualan->id);
 
             if ($nota->status !== 'berjalan') {
@@ -299,8 +300,8 @@ class PesananService
                 }
             }
 
-            $urut  = PesananKacamata::whereDate('created_at', now()->toDateString())->count() + 1;
-            $nomor = 'ORD-' . now()->format('dmY') . '-' . $urut;
+            $urut  = PesananKacamata::whereDate('created_at', $waktu->toDateString())->count() + 1;
+            $nomor = 'ORD-' . $waktu->format('dmY') . '-' . $urut;
 
             return PesananKacamata::create(array_merge($ukuran, [
                 'nomor_pesanan'      => $nomor,
@@ -316,6 +317,8 @@ class PesananService
                 'status'             => 'menunggu',
                 'estimasi_selesai'   => self::bersih($data['estimasi_selesai'] ?? null),
                 'keterangan'         => self::bersih($data['keterangan'] ?? null),
+                'created_at'         => $waktu,
+                'updated_at'         => $waktu,
             ]));
         });
     }

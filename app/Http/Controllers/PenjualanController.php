@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use RuntimeException;
+use Carbon\Carbon;
 
 class PenjualanController extends Controller
 {
@@ -59,6 +60,7 @@ class PenjualanController extends Controller
             'items.*.cyl'        => ['nullable', 'numeric', 'between:-10,10'],
             'items.*.axis'       => ['nullable', 'integer', 'between:0,180'],
             'items.*.add'        => ['nullable', 'numeric', 'between:0,10'],
+            'tanggal_transaksi' => ['nullable', 'date', 'before_or_equal:now'],
         ], [
             'customer_id.required' => 'Customer belum dipilih.',
             'items.required'       => 'Keranjang masih kosong.',
@@ -200,10 +202,13 @@ class PenjualanController extends Controller
                 // Nomor nota: INV-ddmmyyyy-urutan di hari itu
                 $urut  = Penjualan::whereDate('tanggal', now()->toDateString())->count() + 1;
                 $nomor = 'INV-' . now()->format('dmY') . '-' . $urut;
+                $waktu = ! empty($data['tanggal_transaksi'])
+                ? Carbon::parse($data['tanggal_transaksi'])
+                : now();
 
                 $p = Penjualan::create([
                     'nomor_nota'        => $nomor,
-                    'tanggal'           => now()->toDateString(),
+                    'tanggal'           => $waktu->toDateString(),
                     'customer_id'       => $data['customer_id'],
                     'user_id'           => Auth::id(),
                     'metode_pembayaran' => $data['metode_pembayaran'],
@@ -211,6 +216,8 @@ class PenjualanController extends Controller
                     'total'             => $total,
                     'uang_diterima'     => $uang,
                     'status'            => $status,
+                    'created_at'         => $waktu,
+                    'updated_at'         => $waktu,
                 ]);
 
                 foreach ($baris as $r) {
@@ -220,7 +227,7 @@ class PenjualanController extends Controller
                     // Lensa custom: tidak ada stok yang dipotong. HPP diisi 0 dulu karena harga beli dari supplier belum diketahui.
                     $hpp = $r['custom']
                         ? 0.0
-                        : $stok->keluarFifo($idBarang, $r['jumlah'], 'terjual', 'penjualan', $p->id);
+                        : $stok->keluarFifo($idBarang, $r['jumlah'], 'terjual', 'penjualan', $p->id, null, null, $waktu);
 
                     $p->detail()->create([
                         'barang_id'  => $idBarang,
@@ -240,7 +247,7 @@ class PenjualanController extends Controller
                     'metode'        => $data['metode_pembayaran'],
                     'jumlah'        => $dibayarSekarang,
                     'uang_diterima' => $uang,
-                    'dibayar_pada'  => now(),
+                    'dibayar_pada'  => $waktu,
                     'user_id'       => Auth::id(),
                 ]);
 

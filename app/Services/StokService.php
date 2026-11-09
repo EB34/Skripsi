@@ -44,9 +44,10 @@ class StokService
         ?string $refTipe = null,
         ?int $refId = null,
         ?string $keterangan = null,
-        ?int $userId = null
+        ?int $userId = null,
+        ?\DateTimeInterface $tanggal = null
     ): float {
-        return DB::transaction(function () use ($barangId, $jumlah, $jenisKejadian, $refTipe, $refId, $keterangan, $userId) {
+        return DB::transaction(function () use ($barangId, $jumlah, $jenisKejadian, $refTipe, $refId, $keterangan, $userId, $tanggal) {
             $barang = Barang::lockForUpdate()->findOrFail($barangId);
 
             if ($barang->stok_tersedia < $jumlah) {
@@ -59,6 +60,7 @@ class StokService
             $batches = DetailPembelian::where('barang_id', $barangId)
                 ->where('sisa_jumlah', '>', 0)
                 ->whereNotNull('tanggal_masuk')
+                ->when($tanggal, fn ($q) => $q->where('tanggal_masuk', '<=', $tanggal))
                 ->orderBy('tanggal_masuk')
                 ->orderBy('id')
                 ->lockForUpdate()
@@ -78,7 +80,9 @@ class StokService
             }
 
             if ($sisaDiminta > 0) {
-                throw new RuntimeException("Data batch stok {$barang->kode_model} tidak konsisten dengan angka stok.");
+                throw new RuntimeException($tanggal
+                ? "Stok {$barang->kode_model} yang sudah masuk sebelum " . $tanggal->format('d/m/Y H:i') . " tidak cukup. Input stok masuknya dulu dengan tanggal sebelum penjualan."
+                : "Data batch stok {$barang->kode_model} tidak konsisten dengan angka stok.");
             }
 
             $barang->stok_tersedia -= $jumlah;
@@ -87,7 +91,7 @@ class StokService
             // Kurangi juga stok per lokasi supaya totalnya tetap sama dengan stok_tersedia
             $this->kurangiStokLokasi($barang, $jumlah);
 
-            $this->catatMutasi($barang, $jenisKejadian, -$jumlah, $refTipe, $refId, $keterangan, $userId);
+            $this->catatMutasi($barang, $jenisKejadian, -$jumlah, $refTipe, $refId, $keterangan, $userId, $tanggal);
 
             return (float) $hpp;
         });
