@@ -16,14 +16,14 @@ class PembelianController extends Controller
 {
     public function index()
     {
-        $pembelian = Pembelian::with(['supplier', 'detail.barang'])
+        $pembelian = Pembelian::with(['supplier', 'detail.barang', 'retur'])
             ->latest('tanggal')
             ->latest('id')
             ->paginate(10);
 
         return view('pembelian.index', [
             'pembelian' => $pembelian,
-            'supplier'  => Supplier::with('kontak')->orderBy('nama_perusahaan')->get(),     // untuk popup buat PO     // untuk popup buat PO
+            'supplier'  => Supplier::with('kontak')->orderBy('nama_perusahaan')->get(),     // untuk popup buat PO
             'barang'    => Barang::orderBy('kode_model')->get(),  // untuk popup buat PO
         ]);
     }
@@ -78,15 +78,17 @@ class PembelianController extends Controller
 
     /**
      * Verifikasi penerimaan fisik (popup checklist): stok masuk, barang cacat otomatis diretur.
+     * No. invoice dari supplier (opsional di sini) disimpan di PO dan dicetak di surat jalan retur.
      */
     public function terima(Request $request, Pembelian $pembelian, StokService $stok)
     {
         $request->validate([
-            'item'               => ['required', 'array'],
-            'item.*.diterima'    => ['required', 'integer', 'min:0'],
-            'item.*.cacat'       => ['required', 'integer', 'min:0'],
-            'item.*.keterangan'  => ['nullable', 'string', 'max:255'],
-            'catatan_penerima'   => ['nullable', 'string'],
+            'nomor_invoice_supplier' => ['nullable', 'string', 'max:100'],
+            'item'                   => ['required', 'array'],
+            'item.*.diterima'        => ['required', 'integer', 'min:0'],
+            'item.*.cacat'           => ['required', 'integer', 'min:0'],
+            'item.*.keterangan'      => ['nullable', 'string', 'max:255'],
+            'catatan_penerima'       => ['nullable', 'string'],
         ]);
 
         $pembelian->load('detail.barang');
@@ -141,14 +143,18 @@ class PembelianController extends Controller
                         $stok->barangMasuk($d->barang_id, $bagus, 'pembelian', $p->id);
                     }
                     if ($cacat > 0) {
-                        $returItems[] = ['barang_id' => $d->barang_id, 'jumlah' => $cacat];
+                        $returItems[] = [
+                            'barang_id'  => $d->barang_id,
+                            'jumlah'     => $cacat,
+                            'keterangan' => $in['keterangan'] ?? null,
+                        ];
                     }
                     if ($diterima < $d->jumlah_dipesan || $cacat > 0) {
                         $lengkap = false;
                     }
                 }
 
-                // Unit cacat otomatis diajukan retur ke supplier
+                // Unit cacat otomatis diajukan retur ke supplier (jenis retur dipilih Owner saat validasi)
                 if ($returItems) {
                     $retur = ReturSupplier::create([
                         'pembelian_id' => $p->id,
@@ -162,14 +168,18 @@ class PembelianController extends Controller
                             'barang_id'         => $r['barang_id'],
                             'jumlah'            => $r['jumlah'],
                             'alasan'            => 'cacat',
+                            'keterangan'        => $r['keterangan'],
                         ]);
                     }
                 }
 
+                $invoice = trim((string) $request->input('nomor_invoice_supplier'));
+
                 $p->update([
-                    'status'           => $lengkap ? 'diterima_lengkap' : 'diterima_sebagian',
-                    'catatan_penerima' => $request->catatan_penerima,
-                    'diterima_pada'    => now(),
+                    'status'                 => $lengkap ? 'diterima_lengkap' : 'diterima_sebagian',
+                    'catatan_penerima'       => $request->catatan_penerima,
+                    'diterima_pada'          => now(),
+                    'nomor_invoice_supplier' => $invoice !== '' ? $invoice : null,
                 ]);
             });
         } catch (RuntimeException $e) {

@@ -80,6 +80,21 @@
     }
     .teks-hangus { color: #a31515; }
     .ringkas-nota { background: #efefef; border-radius: 8px; padding: 10px 12px; font-size: .78rem; }
+
+    /* Popup yang isinya dibungkus <form>: form ikut menjadi kolom flex supaya
+       header dan footer tetap terlihat dan hanya isi (modal-body) yang digulir */
+    .modal-dialog-scrollable .modal-content > form {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: 100%;
+        overflow: hidden;
+    }
+    .modal-dialog-scrollable .modal-content > form > .modal-body {
+        min-height: 0;
+        overflow-y: auto;
+    }
 </style>
 @endpush
 
@@ -101,7 +116,7 @@
 
     // Nama lensa dari baris nota (ditambah keterangan ukuran kalau ada, mis. lensa custom)
     $namaLensaMata = fn ($d) => $d
-        ? trim(($d->barang->merk ?? '') . ' ' . ($d->barang->kode_model ?? '') . ($d->keterangan ? ' — ' . $d->keterangan : ''))
+        ? trim(($d->barang->merk ?? '') . ' ' . ($d->barang->kode_model ?? '') . ($d->keterangan ? ' | ' . $d->keterangan : ''))
         : null;
 
     $userLogin = auth()->user();

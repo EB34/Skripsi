@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ $judul }} {{ $nomor }}</title>
+    <title>Surat Jalan {{ $retur->nomor_surat_jalan }}</title>
     <style>
         * { box-sizing: border-box; }
         body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #111; margin: 0; padding: 24px; }
@@ -19,7 +19,7 @@
         h1 { font-size: 16px; text-align: center; margin: 0 0 14px; letter-spacing: .5px; }
         .info { width: 100%; margin-bottom: 14px; }
         .info td { padding: 2px 0; vertical-align: top; }
-        .info td.label { width: 130px; }
+        .info td.label { width: 170px; }
         table.barang { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
         table.barang th, table.barang td { border: 1px solid #111; padding: 6px 8px; text-align: left; }
         table.barang th { background: #eee; }
@@ -48,22 +48,17 @@
         <div class="toko">Solo Optik</div>
     </div>
 
-    <h1>{{ $judul }}</h1>
+    <h1>SURAT JALAN PENGEMBALIAN BARANG</h1>
 
     <table class="info">
-        <tr>
-            <td class="label">{{ $mode === 'nota' ? 'No. Nota Retur' : 'No. Surat Jalan' }}</td>
-            <td>: {{ $nomor }}</td>
-        </tr>
-        @if ($mode === 'surat_jalan')
-            <tr><td class="label">No. Nota Retur</td><td>: {{ $retur->nomor_retur }}</td></tr>
-        @endif
+        <tr><td class="label">No. Surat Jalan</td><td>: {{ $retur->nomor_surat_jalan }}</td></tr>
         <tr><td class="label">Tanggal</td><td>: {{ $retur->tanggal_format }}</td></tr>
         <tr><td class="label">Kepada (Supplier)</td><td>: {{ $supplier?->nama_perusahaan ?? '-' }}</td></tr>
         @if ($namaKontak !== '')
             <tr><td class="label">Contact Person</td><td>: {{ $namaKontak }}</td></tr>
         @endif
-        <tr><td class="label">Referensi PO</td><td>: {{ $retur->pembelian?->nomor_po ?? '-' }}</td></tr>
+        <tr><td class="label">No. Referensi Invoice</td><td>: {{ $retur->pembelian?->nomor_invoice_supplier ?: '-' }}</td></tr>
+        <tr><td class="label">Penyelesaian</td><td>: {{ $retur->jenis_label }}</td></tr>
     </table>
 
     <table class="barang">
@@ -79,16 +74,13 @@
         </thead>
         <tbody>
             @foreach ($retur->detail as $i => $d)
-                @php
-                    $ketCacat = $retur->pembelian?->detail->firstWhere('barang_id', $d->barang_id)?->keterangan_cacat;
-                @endphp
                 <tr>
                     <td class="angka">{{ $i + 1 }}</td>
                     <td>{{ $d->barang?->merk ?? '-' }}</td>
                     <td>{{ $d->barang?->kode_model ?? '-' }}</td>
                     <td class="angka">{{ $d->jumlah }}</td>
                     <td>{{ \App\Models\ReturSupplier::ALASAN[$d->alasan] ?? $d->alasan }}</td>
-                    <td>{{ $ketCacat ?: '-' }}</td>
+                    <td>{{ $d->keterangan ?: '-' }}</td>
                 </tr>
             @endforeach
             <tr>

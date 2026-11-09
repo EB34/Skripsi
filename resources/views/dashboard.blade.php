@@ -25,6 +25,8 @@
     .stat-kuning { background: var(--kuning); }
     .stat-kuning .stat-ket, .stat-kuning .stat-label { color: #3d3000; }
     .stat-kuning .stat-link { border-color: rgba(0, 0, 0, .15); }
+    .btn-abu.btn-kuning { background: var(--kuning); }
+    .btn-abu.btn-kuning:hover { background: var(--kuning-aktif); color: #000; }
 
     .pesanan-item { background: #fff; border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; }
     .pesanan-item:last-child { margin-bottom: 0; }
@@ -63,7 +65,7 @@
         </div>
     </div>
     <div class="d-flex flex-wrap gap-2">
-        <a href="{{ route('penjualan.create') }}" class="btn btn-primary btn-sm"><i class="bi bi-cart3"></i> Kasir Baru</a>
+        <a href="{{ route('penjualan.create') }}" class="btn-abu btn-kuning"><i class="bi bi-cart3"></i> Kasir Baru</a>
         <a href="{{ route('pesanan.index') }}" class="btn-abu"><i class="bi bi-eyeglasses"></i> Pesanan Kacamata</a>
         @if ($isOwner)
             <a href="{{ route('pembelian.index') }}" class="btn-abu"><i class="bi bi-truck"></i> Buat PO ke Supplier</a>

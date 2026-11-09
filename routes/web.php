@@ -86,9 +86,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/retur/kesalahan-toko', [KesalahanTokoController::class, 'index'])->name('retur.kesalahan');
     Route::post('/retur/kesalahan-toko', [KesalahanTokoController::class, 'store'])->name('retur.kesalahan.store');
 
-    // Modul Retur, tab Retur ke Supplier: daftar dan cetak bisa dilihat Owner dan Petugas
+    // Modul Retur, tab Retur ke Supplier: daftar, buat retur, cek barang pengganti, dan cetak surat jalan
+    // bisa dilakukan Owner dan Petugas (nominal uang hanya tampil dan bisa diisi Owner)
     Route::get('/retur/supplier', [ReturSupplierController::class, 'index'])->name('retur.supplier');
-    Route::get('/retur/supplier/{retur}/nota', [ReturSupplierController::class, 'nota'])->name('retur.supplier.nota');
+    Route::post('/retur/supplier', [ReturSupplierController::class, 'store'])->name('retur.supplier.store');
+    Route::post('/retur/supplier/{retur}/terima-pengganti', [ReturSupplierController::class, 'terimaPengganti'])->name('retur.supplier.pengganti');
     Route::get('/retur/supplier/{retur}/surat-jalan', [ReturSupplierController::class, 'suratJalan'])->name('retur.supplier.suratjalan');
 
     // Page khusus Owner
@@ -106,7 +108,7 @@ Route::middleware('auth')->group(function () {
         // Kerugian operasional: nilai rupiah kerugian toko hanya untuk Owner
         Route::get('/kerugian', [KerugianController::class, 'index'])->name('kerugian.index');
 
-        // Retur ke Supplier: validasi dan tandai selesai = wewenang Owner
+        // Retur ke Supplier: validasi (terbitkan surat jalan) dan potong tagihan = wewenang Owner
         Route::post('/retur/supplier/{retur}/kirim', [ReturSupplierController::class, 'kirim'])->name('retur.supplier.kirim');
         Route::post('/retur/supplier/{retur}/selesai', [ReturSupplierController::class, 'selesai'])->name('retur.supplier.selesai');
 

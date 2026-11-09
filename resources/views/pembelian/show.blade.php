@@ -10,6 +10,7 @@
             Supplier: {{ $pembelian->supplier->nama }} &nbsp;|&nbsp;
             Dipesan: {{ $pembelian->tanggal->format('d M Y') }} &nbsp;|&nbsp;
             Diverifikasi: {{ $pembelian->diterima_pada?->format('d M Y H:i') ?? '-' }}
+            &nbsp;|&nbsp; Invoice supplier: {{ $pembelian->nomor_invoice_supplier ?: '-' }}
         </div>
     </div>
     <a href="{{ route('pembelian.index') }}" class="btn-abu"><i class="bi bi-arrow-left"></i> Kembali</a>
@@ -61,7 +62,7 @@
         <ul class="mb-0">
             @foreach ($pembelian->retur as $r)
                 @foreach ($r->detail as $rd)
-                    <li>{{ $rd->jumlah }} pcs {{ $rd->barang->merk }} ({{ $rd->barang->kode_model }}) - status: {{ $r->status }}</li>
+                    <li>{{ $rd->jumlah }} pcs {{ $rd->barang->merk }} ({{ $rd->barang->kode_model }}) - {{ $r->jenis_label }}, status: {{ $r->status_label }}</li>
                 @endforeach
             @endforeach
         </ul>

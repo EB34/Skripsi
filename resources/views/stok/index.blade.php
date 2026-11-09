@@ -48,6 +48,7 @@
         text-decoration: none;
     }
     .btn-reset:hover { color: #000; text-decoration: underline; }
+    .label-kategori { font-size: .78rem; color: #555; white-space: nowrap; }
 </style>
 @endpush
 
@@ -67,6 +68,7 @@
         </div>
 
         @if ($daftarKategori->isNotEmpty())
+            <span class="label-kategori">Material/Tipe:</span>
             <select name="kategori" class="select-kategori" onchange="this.form.submit()">
                 <option value="">Semua material/tipe</option>
                 @foreach ($daftarKategori->groupBy('jenis') as $jenisGrup => $grup)

@@ -34,6 +34,13 @@
                         <option value="Rusak saat Pemasangan">
                     </datalist>
                 </div>
+                <div class="mb-3">
+                    <label class="form-label">Keterangan kerusakan <span class="text-danger">*</span></label>
+                    <input type="text" name="keterangan" maxlength="255"
+                           value="{{ old('keterangan') }}" class="form-control"
+                           placeholder="Contoh: engsel kanan patah, ditemukan saat display" required>
+                    <div class="form-text">Ditulis baru untuk laporan ini. Kalau barang diretur ke supplier, keterangan ini yang tercetak di surat jalan.</div>
+                </div>
                 <div class="alert alert-warning small mb-0">
                     Barang akan dikeluarkan dari stok layak jual, lalu menunggu keputusan:
                     retur ke supplier atau write off.

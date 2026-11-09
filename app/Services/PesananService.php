@@ -108,7 +108,7 @@ class PesananService
             $label = trim(($b->merk ?? '') . ' ' . ($b->kode_model ?? ''));
             $rincian = $custom ? trim((string) $d->keterangan) : (string) ($b->ukuran_label ?? '');
             if ($rincian !== '') {
-                $label .= ' — ' . $rincian;
+                $label .= ' | ' . $rincian;
             }
 
             for ($i = 1; $i <= (int) $d->jumlah; $i++) {

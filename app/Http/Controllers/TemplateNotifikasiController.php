@@ -46,13 +46,13 @@ class TemplateNotifikasiController extends Controller
         }
 
         // Penanda wajib untuk template ini
-        foreach (TemplateNotifikasi::DAFTAR[$kode]['wajib'] as $wajib) {
-            if (! str_contains($isi, '{' . $wajib . '}')) {
-                return back()->withInput()->withErrors([
-                    'isi' => 'Template ini wajib memuat {' . $wajib . '}.',
-                ]);
-            }
-        }
+        // foreach (TemplateNotifikasi::DAFTAR[$kode]['wajib'] as $wajib) {
+        //     if (! str_contains($isi, '{' . $wajib . '}')) {
+        //         return back()->withInput()->withErrors([
+        //             'isi' => 'Template ini wajib memuat {' . $wajib . '}.',
+        //         ]);
+        //     }
+        // }
 
         $template = TemplateNotifikasi::ambil($kode);
         $template->isi = $isi;

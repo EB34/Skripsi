@@ -76,7 +76,7 @@
             <ul class="dropdown-menu dropdown-menu-end tipe-menu">
                 <li>
                     <a class="dropdown-item {{ $tipeAktif ? '' : 'active' }}"
-                       href="{{ route('stok.mutasi', array_filter(['cari' => request('cari')])) }}">
+                        href="{{ route('stok.mutasi', array_filter(['cari' => request('cari')])) }}">
                         Semua Tipe Mutasi
                     </a>
                 </li>

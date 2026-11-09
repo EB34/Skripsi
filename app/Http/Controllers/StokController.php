@@ -152,27 +152,32 @@ class StokController extends Controller
         ]);
     }
 
-    public function laporRusak(Request $request, StokService $stokService)
+        public function laporRusak(Request $request, StokService $stokService)
     {
         $data = $request->validate([
-            'barang_id' => ['required', 'exists:barang,id'],
-            'jumlah'    => ['required', 'integer', 'min:1'],
-            'alasan'    => ['required', 'string', 'max:255'],
+            'barang_id'  => ['required', 'exists:barang,id'],
+            'jumlah'     => ['required', 'integer', 'min:1'],
+            'alasan'     => ['required', 'string', 'max:255'],
+            'keterangan' => ['required', 'string', 'max:255'],
         ], [
-            'barang_id.required' => 'Barang wajib dipilih.',
-            'jumlah.required'    => 'Jumlah wajib diisi.',
-            'jumlah.integer'     => 'Jumlah harus berupa angka bulat.',
-            'jumlah.min'         => 'Jumlah minimal 1.',
-            'alasan.required'    => 'Alasan kerusakan wajib diisi.',
+            'barang_id.required'  => 'Barang wajib dipilih.',
+            'jumlah.required'     => 'Jumlah wajib diisi.',
+            'jumlah.integer'      => 'Jumlah harus berupa angka bulat.',
+            'jumlah.min'          => 'Jumlah minimal 1.',
+            'alasan.required'     => 'Alasan kerusakan wajib diisi.',
+            'keterangan.required' => 'Keterangan kerusakan wajib diisi.',
         ]);
 
         try {
-            $stokService->laporRusak(
+            $laporan = $stokService->laporRusak(
                 (int) $data['barang_id'],
                 (int) $data['jumlah'],
                 $data['alasan'],
                 Auth::id()
             );
+
+            // Keterangan baru untuk laporan ini (nanti dipakai di surat jalan kalau diretur)
+            $laporan->forceFill(['keterangan' => trim($data['keterangan'])])->save();
         } catch (RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }
@@ -182,6 +187,7 @@ class StokController extends Controller
     }
 
     /** Keputusan Owner: retur ke supplier (wajib PO asal dan alasan) atau write off. */
+        /** Keputusan Owner: retur ke supplier (wajib PO asal dan alasan) atau write off. */
     public function putuskanRusak(Request $request, BarangRusak $barangRusak, StokService $stokService)
     {
         $data = $request->validate([
@@ -207,6 +213,12 @@ class StokController extends Controller
                 isset($data['pembelian_id']) ? (int) $data['pembelian_id'] : null,
                 $data['alasan_retur'] ?? null
             );
+
+            // Keterangan di surat jalan = keterangan baru dari laporan barang rusak ini,
+            // bukan keterangan saat penerimaan barang
+            if ($retur) {
+                $retur->detail()->update(['keterangan' => $barangRusak->keterangan]);
+            }
         } catch (RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }

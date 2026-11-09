@@ -130,6 +130,9 @@
                         <td>
                             <div class="mono fw-semibold">{{ $p->nomor_po }}</div>
                             <div class="text-muted">{{ $p->tanggal->format('d M Y') }}</div>
+                            @if ($p->nomor_invoice_supplier)
+                            <div class="text-muted" style="font-size:.7rem">Invoice: {{ $p->nomor_invoice_supplier }}</div>
+                            @endif
                         </td>
                         <td>{{ $p->supplier->nama_perusahaan }}</td>
                         <td>
@@ -148,7 +151,16 @@
                                 </div>
                             @endforeach
                         </td>
-                        <td class="text-end">Rp {{ number_format($p->total_tagihan, 0, ',', '.') }}</td>
+                        @php $potongan = (float) $p->retur->sum('nilai_potongan'); @endphp
+<td class="text-end">
+    @if ($potongan > 0)
+        <div class="text-muted text-decoration-line-through" style="font-size:.7rem">Rp {{ number_format($p->total_tagihan, 0, ',', '.') }}</div>
+        <div>Rp {{ number_format(max($p->total_tagihan - $potongan, 0), 0, ',', '.') }}</div>
+        <div class="text-success" style="font-size:.68rem">Potongan retur Rp {{ number_format($potongan, 0, ',', '.') }}</div>
+    @else
+        Rp {{ number_format($p->total_tagihan, 0, ',', '.') }}
+    @endif
+</td>
                         <td class="text-center"><span class="status-po {{ $kelas }}">{{ $teks }}</span></td>
                         <td class="text-center">
                             @if ($p->status === 'menunggu_pengiriman')
@@ -306,6 +318,12 @@
                                 dan diajukan retur ke supplier.
                             </div>
 
+                            <div class="mb-3">
+                                <label class="form-label" style="font-size:.8rem">No. Invoice dari Supplier (opsional):</label>
+                                <input type="text" name="nomor_invoice_supplier" maxlength="100" class="form-control"
+                                placeholder="Nomor invoice dari supplier, beda dengan nomor PO">
+                                <div class="form-text">Dipakai sebagai No. Referensi Invoice di surat jalan retur.</div>
+</div>
                             @foreach ($p->detail as $d)
                                 <div class="kotak-item">
                                     <div class="d-flex justify-content-between">

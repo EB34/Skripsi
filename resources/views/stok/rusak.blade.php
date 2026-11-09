@@ -63,7 +63,7 @@
         </button>
     </div>
 
-    {{-- Pencarian: SKU, nama barang, merk, alasan kerusakan, atau nama pelapor --}}
+    <!-- {{-- Pencarian: SKU, nama barang, merk, alasan kerusakan, atau nama pelapor --}}
     <form method="GET" action="{{ route('stok.rusak') }}" class="panel-filter">
         <div class="search-box">
             <i class="bi bi-search"></i>
@@ -73,7 +73,7 @@
         @if(request('cari'))
             <a href="{{ route('stok.rusak') }}" class="btn-reset">Reset</a>
         @endif
-    </form>
+    </form> -->
 
     <div class="tabel-mockup">
         <div class="table-responsive">
