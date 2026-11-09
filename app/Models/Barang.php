@@ -96,4 +96,10 @@ class Barang extends Model
 
         return 'SPH ' . $f($this->sph) . ' / CYL ' . $f($this->cyl ?? 0);
     }
+
+        /** URL gambar produk, atau null kalau belum ada gambar. Butuh `php artisan storage:link`. */
+    public function getGambarUrlAttribute(): ?string
+    {
+        return $this->gambar ? asset('storage/' . $this->gambar) : null;
+    }
 }

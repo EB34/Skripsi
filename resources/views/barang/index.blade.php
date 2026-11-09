@@ -10,6 +10,16 @@
         height: 38px; border: 0; border-radius: 8px;
         padding: 0 10px; font-size: .8rem; background: #fff; max-width: 200px;
     }
+
+    /* Gambar produk di kartu: mengisi seluruh kotak foto */
+    .barang-foto { overflow: hidden; }
+    .barang-foto .foto-produk { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    /* Pratinjau gambar di popup */
+    .preview-gambar {
+        width: 120px; height: 120px; object-fit: cover;
+        border: 1px solid #ccc; border-radius: 8px; background: #f3f3f3;
+    }
 </style>
 @endpush
 
@@ -27,6 +37,8 @@
         'sph'         => old('sph'),
         'cyl'         => old('cyl'),
         'tanpa_stok'  => (bool) old('tanpa_stok'),
+        // File yang dipilih tidak bisa dipulihkan browser, tapi gambar lama barang tetap ditampilkan
+        'gambar_url'  => old('_id') ? \App\Models\Barang::find(old('_id'))?->gambar_url : null,
     ];
 
     // Pilihan kategori untuk JavaScript popup
@@ -91,7 +103,13 @@
         @endphp
 
         <div class="barang-card">
-            <div class="barang-foto"><i class="bi {{ $ikonJenis }}"></i></div>
+            <div class="barang-foto">
+                @if ($b->gambar_url)
+                    <img src="{{ $b->gambar_url }}" alt="{{ $b->merk }}" class="foto-produk" loading="lazy">
+                @else
+                    <i class="bi {{ $ikonJenis }}"></i>
+                @endif
+            </div>
 
             <div class="barang-body">
                 <div class="barang-top">
@@ -135,7 +153,8 @@
                                 data-harga="{{ (int) $b->harga_jual }}"
                                 data-sph="{{ $b->sph }}"
                                 data-cyl="{{ $b->cyl }}"
-                                data-custom="{{ $b->tanpa_stok ? 1 : 0 }}">
+                                data-custom="{{ $b->tanpa_stok ? 1 : 0 }}"
+                                data-gambar-url="{{ $b->gambar_url }}">
                             <i class="bi bi-pencil-square"></i>
                         </button>
                         <form action="{{ route('barang.destroy', $b) }}" method="POST"
@@ -161,7 +180,8 @@
 <div class="modal fade" id="modalBarang" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="POST" id="form-barang" action="{{ route('barang.store') }}"
+            {{-- enctype wajib supaya file gambar ikut terkirim --}}
+            <form method="POST" id="form-barang" action="{{ route('barang.store') }}" enctype="multipart/form-data"
                   data-url-simpan="{{ route('barang.store') }}"
                   data-url-ubah="{{ route('barang.update', '__ID__') }}">
                 @csrf
@@ -203,6 +223,24 @@
                     <div class="mb-3">
                         <label class="form-label">Merk</label>
                         <input type="text" name="merk" class="form-control" required>
+                    </div>
+
+                    {{-- Gambar produk (opsional) --}}
+                    <div class="mb-3">
+                        <label class="form-label">Gambar Produk <span class="text-muted">(opsional)</span></label>
+                        <div class="d-flex align-items-start gap-3">
+                            <img id="preview-gambar" class="preview-gambar d-none" alt="Pratinjau gambar">
+                            <div class="flex-grow-1">
+                                <input type="file" name="gambar" id="input-gambar" class="form-control"
+                                       accept="image/jpeg,image/png,image/webp">
+                                <div class="form-text">JPG, PNG, atau WEBP. Maksimal 2 MB.</div>
+
+                                <div class="form-check mt-2 d-none" id="blok-hapus-gambar">
+                                    <input class="form-check-input" type="checkbox" name="hapus_gambar" value="1" id="cek-hapus-gambar">
+                                    <label class="form-check-label" for="cek-hapus-gambar">Hapus gambar saat ini</label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     {{-- Kategori: Material (frame), Tipe Lensa, atau Tipe Softlens. Pilihannya mengikuti jenis. --}}
@@ -283,8 +321,46 @@
     const labelKategori = document.getElementById('label-kategori');
     const infoKosong   = document.getElementById('info-kategori-kosong');
 
+    const inputGambar  = document.getElementById('input-gambar');
+    const previewImg   = document.getElementById('preview-gambar');
+    const blokHapusGbr = document.getElementById('blok-hapus-gambar');
+    const cekHapusGbr  = document.getElementById('cek-hapus-gambar');
+    let gambarTersimpan = '';   // URL gambar barang yang sedang diubah (kosong kalau belum ada)
+
     const semuaKategori = JSON.parse(dataEl.dataset.kategori);
     const namaKategori  = { frame: 'Material', lensa: 'Tipe Lensa', softlens: 'Tipe Softlens' };
+
+    // Tampilkan pratinjau (url kosong = sembunyikan)
+    function tampilPreview(url) {
+        if (url) {
+            previewImg.src = url;
+            previewImg.classList.remove('d-none');
+        } else {
+            previewImg.removeAttribute('src');
+            previewImg.classList.add('d-none');
+        }
+    }
+
+    // File baru dipilih: pratinjau langsung. Dikosongkan lagi: kembali ke gambar tersimpan.
+    inputGambar.addEventListener('change', () => {
+        const file = inputGambar.files[0];
+        if (file) {
+            tampilPreview(URL.createObjectURL(file));
+            cekHapusGbr.checked = false;
+        } else {
+            tampilPreview(cekHapusGbr.checked ? '' : gambarTersimpan);
+        }
+    });
+
+    // Centang "hapus gambar": sembunyikan pratinjau gambar lama
+    cekHapusGbr.addEventListener('change', () => {
+        if (cekHapusGbr.checked) {
+            inputGambar.value = '';
+            tampilPreview('');
+        } else {
+            tampilPreview(gambarTersimpan);
+        }
+    });
 
     // Isi dropdown kategori dengan pilihan yang jenisnya sama dengan jenis barang
     function isiKategori(jenis, terpilih = '') {
@@ -345,6 +421,13 @@
         form.elements['cyl'].value        = data.cyl ?? '';
         cekCustom.checked                 = !!data.tanpa_stok;
 
+        // Gambar: kosongkan pilihan file, tampilkan gambar tersimpan (kalau ada)
+        inputGambar.value   = '';
+        cekHapusGbr.checked = false;
+        gambarTersimpan     = data.gambar_url ?? '';
+        tampilPreview(gambarTersimpan);
+        blokHapusGbr.classList.toggle('d-none', !gambarTersimpan);
+
         isiKategori(data.jenis ?? '', data.kategori_id ?? '');
         aturUkuran();
         modal.show();
@@ -377,6 +460,7 @@
             sph: tombol.dataset.sph,
             cyl: tombol.dataset.cyl,
             tanpa_stok: tombol.dataset.custom === '1',
+            gambar_url: tombol.dataset.gambarUrl,
         });
     });
 

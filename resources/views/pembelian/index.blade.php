@@ -57,6 +57,20 @@
         overflow-y: auto;
     }
 
+        /* Popup Buat PO spy bisa discroll*/
+    .modal-dialog-scrollable .modal-content > form {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: 100%;
+        overflow: hidden;
+    }
+    .modal-dialog-scrollable .modal-content > form > .modal-body {
+        min-height: 0;
+        overflow-y: auto;
+    }
+
     .sup-combo { position: relative; }
     .sup-list {
         position: absolute; left: 0; right: 0; top: 100%;

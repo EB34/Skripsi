@@ -6,6 +6,7 @@ use App\Models\Barang;
 use App\Models\KategoriBarang;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class BarangController extends Controller
@@ -44,6 +45,9 @@ class BarangController extends Controller
                 'numeric', 'between:-20,20', $this->kelipatanSeperempat(),
             ],
             'cyl'        => ['nullable', 'numeric', 'between:-10,10', $this->kelipatanSeperempat()],
+            // Gambar produk (opsional). hapus_gambar hanya dipakai saat ubah.
+            'gambar'       => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'hapus_gambar' => ['nullable', 'boolean'],
         ];
     }
 
@@ -86,12 +90,41 @@ class BarangController extends Controller
                 : 'Kode model sudah dipakai barang lain.',
             'sph.required' => 'SPH wajib diisi untuk lensa dan softlens (kecuali lensa custom).',
             'kategori_id.exists' => 'Kategori tidak sesuai dengan jenis barang.',
+            'gambar.image'    => 'File gambar harus berupa gambar (JPG, PNG, atau WEBP).',
+            'gambar.mimes'    => 'Format gambar harus JPG, PNG, atau WEBP.',
+            'gambar.max'      => 'Ukuran gambar maksimal 2 MB.',
+            'gambar.uploaded' => 'Gambar gagal diunggah. Ukuran file mungkin melebihi batas server (2 MB).',
         ];
     }
 
     private function namaAtribut(): array
     {
-        return ['sph' => 'SPH', 'cyl' => 'CYL', 'kategori_id' => 'Kategori'];
+        return ['sph' => 'SPH', 'cyl' => 'CYL', 'kategori_id' => 'Kategori', 'gambar' => 'Gambar'];
+    }
+
+    /**
+     * Menyimpan file gambar dan menyiapkan kolom `gambar`.
+     * - File baru diunggah: disimpan, file lama (kalau ada) dihapus.
+     * - Centang "hapus gambar" saat ubah: file lama dihapus, kolom dikosongkan.
+     * - Tidak ada keduanya: kolom `gambar` tidak diubah.
+     * Objek file dan flag hapus_gambar dikeluarkan dari data supaya tidak ikut masuk ke create/update.
+     */
+    private function prosesGambar(Request $request, array $data, ?Barang $barang = null): array
+    {
+        unset($data['gambar'], $data['hapus_gambar']);
+
+        if ($request->hasFile('gambar')) {
+            $data['gambar'] = $request->file('gambar')->store('barang', 'public');
+
+            if ($barang?->gambar) {
+                Storage::disk('public')->delete($barang->gambar);
+            }
+        } elseif ($barang && $barang->gambar && $request->boolean('hapus_gambar')) {
+            Storage::disk('public')->delete($barang->gambar);
+            $data['gambar'] = null;
+        }
+
+        return $data;
     }
 
     public function index(Request $request)
@@ -127,7 +160,9 @@ class BarangController extends Controller
     public function store(Request $request)
     {
         $this->siapkan($request);
-        Barang::create($request->validate($this->aturan(), $this->pesan($request), $this->namaAtribut()));
+        $data = $request->validate($this->aturan(), $this->pesan($request), $this->namaAtribut());
+
+        Barang::create($this->prosesGambar($request, $data));
 
         return redirect()->route('barang.index')->with('success', 'Barang berhasil ditambahkan.');
     }
@@ -135,17 +170,26 @@ class BarangController extends Controller
     public function update(Request $request, Barang $barang)
     {
         $this->siapkan($request);
-        $barang->update($request->validate($this->aturan($barang), $this->pesan($request, $barang), $this->namaAtribut()));
+        $data = $request->validate($this->aturan($barang), $this->pesan($request, $barang), $this->namaAtribut());
+
+        $barang->update($this->prosesGambar($request, $data, $barang));
 
         return redirect()->route('barang.index')->with('success', 'Barang berhasil diperbarui.');
     }
 
     public function destroy(Barang $barang)
     {
+        $gambar = $barang->gambar;
+
         try {
             $barang->delete();
         } catch (QueryException $e) {
             return back()->with('error', 'Barang tidak bisa dihapus karena sudah dipakai di transaksi atau riwayat stok.');
+        }
+
+        // File hanya dihapus setelah barang benar-benar terhapus dari database
+        if ($gambar) {
+            Storage::disk('public')->delete($gambar);
         }
 
         return redirect()->route('barang.index')->with('success', 'Barang berhasil dihapus.');
