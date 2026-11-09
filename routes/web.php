@@ -20,6 +20,7 @@ use App\Http\Controllers\LogNotifikasiController;
 use App\Http\Controllers\TemplateNotifikasiController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\KategoriBarangController;
+use App\Http\Controllers\StokImportController;
 
 // Route::get('/', function () {
 //     return view('welcome');
@@ -130,5 +131,9 @@ Route::middleware('auth')->group(function () {
 
         // Memproses retur customer (konfirmasi supplier + tindak lanjut) = wewenang Owner
         Route::post('/retur/customer/{retur}/proses', [ReturCustomerController::class, 'proses'])->name('retur.customer.proses');
+
+        Route::get('stok/import', [StokImportController::class, 'form'])->name('stok.import');
+Route::get('stok/import/template', [StokImportController::class, 'template'])->name('stok.import.template');
+Route::post('stok/import', [StokImportController::class, 'proses'])->name('stok.import.proses');
     });
 });

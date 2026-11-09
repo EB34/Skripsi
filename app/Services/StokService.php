@@ -483,8 +483,9 @@ class StokService
         }
     }
 
-    /**
+        /**
      * Satu-satunya tempat yang menulis ke mutasi_stok.
+     * $tanggal opsional: dipakai untuk input data dengan tanggal/jam yang ditentukan sendiri (import).
      */
     protected function catatMutasi(
         Barang $barang,
@@ -493,14 +494,15 @@ class StokService
         ?string $refTipe,
         ?int $refId,
         ?string $keterangan = null,
-        ?int $userId = null
+        ?int $userId = null,
+        ?\DateTimeInterface $tanggal = null
     ): void {
         MutasiStok::create([
             'barang_id'      => $barang->id,
             'jenis_kejadian' => $jenis,
             'jumlah'         => $jumlah,                  // negatif jika stok berkurang
             'saldo_setelah'  => $barang->stok_tersedia,
-            'tanggal'        => now(),
+            'tanggal'        => $tanggal ?? now(),
             'referensi_tipe' => $refTipe,
             'referensi_id'   => $refId,
             'keterangan'     => $keterangan,

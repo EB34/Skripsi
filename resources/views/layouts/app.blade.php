@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>@yield('title', 'SIOPS') - Solo Optik</title>
+    <title>@yield('title', 'SIOPS') - Optik XYZ</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -40,13 +40,51 @@
             top: 0;
             z-index: 1030;
         }
-        .logo-box {
-            width: 140px; height: 40px;
-            background: #d9d9d9;
-            border-radius: 4px;
-            display: flex; align-items: center; justify-content: center;
-            font-weight: 700;
+
+        /* ---------- Logo (ikon + nama + badge + alamat) ---------- */
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: #111;
         }
+        .brand:hover { color: #111; }
+        .brand-ikon {
+            width: 48px; height: 48px;
+            background: #fff;
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            padding: 6px;
+        }
+        .brand-ikon img { width: 100%; height: auto; display: block; }
+        .brand-teks { line-height: 1.15; }
+        .brand-baris { display: flex; align-items: center; gap: 10px; }
+        .brand-nama {
+            font-size: 1.25rem;
+            font-weight: 800;
+            letter-spacing: .01em;
+            margin: 0;
+        }
+        .brand-badge {
+            background: #1e1e1e;
+            color: #fff;
+            font-family: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+            font-size: .65rem;
+            font-weight: 500;
+            padding: 3px 10px;
+            border-radius: 6px;
+            white-space: nowrap;
+        }
+        .brand-alamat {
+            font-size: .72rem;
+            color: #333;
+            margin-top: 3px;
+            display: flex; align-items: center; gap: 5px;
+            white-space: nowrap;
+        }
+
         .topbar-pills { display: flex; gap: 12px; }
         .pill-info {
             background: #e8e8e8;
@@ -55,6 +93,8 @@
             font-size: .72rem;
             font-weight: 500;
         }
+
+        /* ---------- Kartu user (ikon + nama + peran) ---------- */
         .user-card {
             background: #fff;
             border: 0;
@@ -63,8 +103,12 @@
             min-width: 190px;
             text-align: left;
             line-height: 1.25;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         .user-card.dropdown-toggle::after { display: none; }
+        .user-ikon { width: 28px; height: 28px; flex-shrink: 0; display: block; }
         .user-card .nama { font-size: .82rem; font-weight: 600; }
         .user-card .peran { font-size: .68rem; color: #555; }
 
@@ -220,7 +264,22 @@
 
 {{-- ===== Bilah atas ===== --}}
 <header class="topbar">
-    <div class="logo-box">Logo</div>
+    {{-- Logo: ikon kacamata + nama + badge versi + alamat --}}
+    <a href="{{ route('dashboard') }}" class="brand">
+        <div class="brand-ikon">
+            <img src="{{ asset('images/logoKacamata.png') }}" alt="Logo Optik XYZ">
+        </div>
+        <div class="brand-teks">
+            <div class="brand-baris">
+                <h1 class="brand-nama">Optik XYZ</h1>
+                <!-- <span class="brand-badge">SIOPS v2.4</span> -->
+            </div>
+            <div class="brand-alamat">
+                <i class="bi bi-building"></i>
+                Jl. RE.Martadinata No.76, Surakarta
+            </div>
+        </div>
+    </a>
 
     <div class="flex-grow-1 d-flex justify-content-center">
         @include('layouts._pill_status')
@@ -228,8 +287,11 @@
 
     <div class="dropdown">
         <button class="user-card dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <div class="nama">{{ auth()->user()->nama }}</div>
-            <div class="peran">{{ auth()->user()->role_label }}</div>
+            <img src="{{ asset('images/user.png') }}" alt="" class="user-ikon">
+            <div>
+                <div class="nama">{{ auth()->user()->nama }}</div>
+                <div class="peran">{{ auth()->user()->role_label }}</div>
+            </div>
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
             <li>

@@ -52,6 +52,16 @@
     .tabel-mockup .table td + td { border-left: 1px solid #e3e3e3; }
     .tabel-mockup .table tbody tr:last-child td { border-bottom: 0; }
     .sku-kecil { font-size: .7rem; color: #555; }
+
+    .btn-import {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: #1f8fb8; color: #fff;
+        border: 0; border-radius: 6px;
+        padding: 8px 14px;
+        font-size: .8rem; font-weight: 500;
+        text-decoration: none;
+    }
+    .btn-import:hover { background: #17769a; color: #fff; }
 </style>
 @endpush
 
@@ -59,6 +69,13 @@
     <h1 class="page-title">Pengelolaan Stok &amp; Log Mutasi</h1>
     <div class="d-flex gap-2">
         <a href="{{ route('lokasi.index') }}" class="btn-abu">Kelola Lokasi</a>
+
+        @if (auth()->user()->isOwner())
+            <a href="{{ route('stok.import') }}" class="btn-import">
+                <i class="bi bi-file-earmark-arrow-up"></i> Import Excel
+            </a>
+        @endif
+
         <button type="button" class="btn-lapor" data-bs-toggle="modal" data-bs-target="#modalLaporRusak">
             <i class="bi bi-exclamation-circle"></i> Lapor Barang Rusak/Cacat
         </button>
