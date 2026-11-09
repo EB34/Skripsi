@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Barang;
 use App\Models\Customer;
+use App\Models\DetailPenjualan;
 use App\Models\Penjualan;
 use App\Services\StokService;
 use Illuminate\Http\Request;
@@ -33,6 +34,14 @@ class PenjualanController extends Controller
         ]);
     }
 
+    /** True kalau nilai berkelipatan 0,25 (toleransi pembulatan desimal). */
+    private function kelipatan025($nilai): bool
+    {
+        $x = (float) $nilai * 4;
+
+        return abs($x - round($x)) < 0.00001;
+    }
+
     public function store(Request $request, StokService $stok)
     {
         $data = $request->validate([
@@ -46,7 +55,10 @@ class PenjualanController extends Controller
             'items.*.jumlah'     => ['required', 'integer', 'min:1'],
             // Hanya dipakai untuk lensa custom (tanpa stok)
             'items.*.harga'      => ['nullable', 'numeric', 'min:0'],
-            'items.*.keterangan' => ['nullable', 'string', 'max:150'],
+            'items.*.sph'        => ['nullable', 'numeric', 'between:-20,20'],
+            'items.*.cyl'        => ['nullable', 'numeric', 'between:-10,10'],
+            'items.*.axis'       => ['nullable', 'integer', 'between:0,180'],
+            'items.*.add'        => ['nullable', 'numeric', 'between:0,10'],
         ], [
             'customer_id.required' => 'Customer belum dipilih.',
             'items.required'       => 'Keranjang masih kosong.',
@@ -57,7 +69,7 @@ class PenjualanController extends Controller
             ->get()
             ->keyBy('id');
 
-        // Barang biasa digabung per barang. Lensa custom tidak digabung: tiap baris = 1 biji dengan harga/keterangan sendiri.
+        // Barang biasa digabung per barang. Lensa custom tidak digabung: tiap baris = 1 biji dengan harga/ukuran sendiri.
         $jumlahBiasa = [];
         $barisCustom = [];
 
@@ -65,21 +77,44 @@ class PenjualanController extends Controller
             $b = $barang[(int) $item['barang_id']];
 
             if ($b->tanpa_stok) {
-                $harga      = $item['harga'] ?? null;
-                $keterangan = trim((string) ($item['keterangan'] ?? ''));
+                $nama  = "{$b->merk} ({$b->kode_model})";
+                $harga = $item['harga'] ?? null;
+                $sph   = $item['sph'] ?? null;
+                $cyl   = $item['cyl'] ?? null;
+                $axis  = $item['axis'] ?? null;
+                $add   = $item['add'] ?? null;
 
                 if ($harga === null || $harga === '') {
-                    return back()->withInput()->with('error', "Harga untuk {$b->merk} ({$b->kode_model}) wajib diisi.");
+                    return back()->withInput()->with('error', "Harga untuk {$nama} wajib diisi.");
                 }
-                if ($keterangan === '') {
-                    return back()->withInput()->with('error', "Keterangan ukuran untuk {$b->merk} ({$b->kode_model}) wajib diisi.");
+                if ($sph === null || $sph === '') {
+                    return back()->withInput()->with('error', "SPH untuk {$nama} wajib diisi.");
+                }
+                foreach (['SPH' => $sph, 'CYL' => $cyl, 'ADD' => $add] as $label => $nilai) {
+                    if ($nilai !== null && $nilai !== '' && ! $this->kelipatan025($nilai)) {
+                        return back()->withInput()->with('error', "{$label} untuk {$nama} harus berkelipatan 0,25 (contoh: -2.25).");
+                    }
+                }
+
+                // AXIS hanya berarti kalau ada silinder: wajib diisi saat CYL terisi, dikosongkan saat CYL kosong/0
+                $adaCyl = $cyl !== null && $cyl !== '' && (float) $cyl != 0.0;
+                if ($adaCyl && ($axis === null || $axis === '')) {
+                    return back()->withInput()->with('error', "AXIS untuk {$nama} wajib diisi karena CYL terisi.");
+                }
+                if (! $adaCyl) {
+                    $cyl  = ($cyl === null || $cyl === '') ? null : $cyl;
+                    $axis = null;
                 }
 
                 $barisCustom[] = [
                     'barang'     => $b,
                     'jumlah'     => 1,
                     'harga'      => (float) $harga,
-                    'keterangan' => $keterangan,
+                    'sph'        => $sph,
+                    'cyl'        => $cyl,
+                    'axis'       => $axis,
+                    'add'        => ($add === '' ? null : $add),
+                    'keterangan' => DetailPenjualan::susunUkuran($sph, $cyl, $axis, $add),
                     'custom'     => true,
                 ];
             } else {
@@ -94,6 +129,10 @@ class PenjualanController extends Controller
                 'barang'     => $barang[$id],
                 'jumlah'     => $qty,
                 'harga'      => (float) $barang[$id]->harga_jual,
+                'sph'        => null,
+                'cyl'        => null,
+                'axis'       => null,
+                'add'        => null,
                 'keterangan' => null,
                 'custom'     => false,
             ];
@@ -189,6 +228,10 @@ class PenjualanController extends Controller
                         'harga_jual' => $r['harga'],
                         'hpp'        => $hpp,   // total modal untuk baris ini (bukan per unit)
                         'keterangan' => $r['keterangan'],
+                        'lensa_sph'  => $r['sph'],
+                        'lensa_cyl'  => $r['cyl'],
+                        'lensa_axis' => $r['axis'],
+                        'lensa_add'  => $r['add'],
                     ]);
                 }
 

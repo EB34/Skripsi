@@ -65,9 +65,12 @@
     .cart-ukuran { font-size: .68rem; font-weight: 600; color: #1f5f87; }
     .cart-harga { font-size: .7rem; color: #555; }
     .cart-qty { display: flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 600; }
-    /* Isian harga dan keterangan untuk lensa custom */
+    /* Isian harga dan ukuran untuk lensa custom */
     .cart-extra { flex: 0 0 100%; display: grid; gap: 6px; }
     .cart-extra input { font-size: .75rem; }
+    .cart-ukuran-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .cart-ukuran-grid label { font-size: .62rem; margin: 0; font-weight: 600; color: #555; }
+    .cart-ukuran-grid input { padding: 3px 5px; text-align: center; }
 
     /* Kotak DP */
     .box-dp {
@@ -325,7 +328,7 @@
     const elDpNom    = document.getElementById('dp-nominal');
     const elDpSisa   = document.getElementById('dp-sisa');
 
-    // kunci -> {id, kode, merk, jenis, ukuran, harga, stok, qty, custom, keterangan}
+    // kunci -> {id, kode, merk, jenis, ukuran, harga, stok, qty, custom, sph, cyl, axis, add}
     // Barang biasa memakai id barang sebagai kunci (satu baris per barang).
     // Lensa custom memakai kunci unik "c1", "c2", ... (satu baris per biji).
     const keranjang = {};
@@ -350,11 +353,15 @@
         return { subtotal: subtotal, subLensa: subLensa, adaFrame: adaFrame };
     }
 
-    // Lensa custom wajib punya harga dan keterangan sebelum boleh dibayar
+    // Lensa custom wajib punya harga dan SPH; kalau CYL terisi (bukan 0), AXIS wajib
     function customLengkap() {
-        return Object.values(keranjang).every(it =>
-            !it.custom || (it.harga > 0 && it.keterangan.trim() !== '')
-        );
+        return Object.values(keranjang).every(it => {
+            if (!it.custom) return true;
+            if (!(it.harga > 0)) return false;
+            if (it.sph === '') return false;
+            if (it.cyl !== '' && parseFloat(it.cyl) !== 0 && it.axis === '') return false;
+            return true;
+        });
     }
 
     function hitung() {
@@ -422,7 +429,7 @@
             const kolomQty = row.querySelector('.cart-qty');
 
             if (it.custom) {
-                // Lensa custom: 1 biji per baris, harga dan keterangan diketik petugas
+                // Lensa custom: 1 biji per baris, harga dan ukuran diketik petugas
                 row.querySelector('.cart-harga').textContent = 'Lensa custom (tanpa stok)';
                 kolomQty.textContent = '1 biji';
 
@@ -441,21 +448,40 @@
                     it.harga = parseFloat(inHarga.value) || 0;
                     hitung();                  // tanpa render ulang supaya kursor tidak pindah
                 });
-
-                const inKet = document.createElement('input');
-                inKet.type = 'text';
-                inKet.maxLength = 150;
-                inKet.name = 'items[' + i + '][keterangan]';
-                inKet.className = 'form-control form-control-sm';
-                inKet.placeholder = 'Ukuran/keterangan, contoh: R -8.00 / L -7.50 *';
-                inKet.value = it.keterangan;
-                inKet.addEventListener('input', () => {
-                    it.keterangan = inKet.value;
-                    hitung();
-                });
-
                 extra.appendChild(inHarga);
-                extra.appendChild(inKet);
+
+                // Kotak ukuran: SPH, CYL, ADD naik 0,25; AXIS bilangan bulat 0-180
+                const kotak = document.createElement('div');
+                kotak.className = 'cart-ukuran-grid';
+                [
+                    ['sph',  'SPH *', '0.25'],
+                    ['cyl',  'CYL',   '0.25'],
+                    ['axis', 'AXIS',  '1'],
+                    ['add',  'ADD',   '0.25'],
+                ].forEach(([f, label, langkah]) => {
+                    const bungkus = document.createElement('div');
+
+                    const lb = document.createElement('label');
+                    lb.textContent = label;
+
+                    const inp = document.createElement('input');
+                    inp.type = 'number';
+                    inp.step = langkah;
+                    if (f === 'axis') { inp.min = '0'; inp.max = '180'; }
+                    inp.name = 'items[' + i + '][' + f + ']';
+                    inp.className = 'form-control form-control-sm';
+                    inp.value = it[f];
+                    inp.addEventListener('input', () => {
+                        it[f] = inp.value;
+                        hitung();
+                    });
+
+                    bungkus.appendChild(lb);
+                    bungkus.appendChild(inp);
+                    kotak.appendChild(bungkus);
+                });
+                extra.appendChild(kotak);
+
                 row.appendChild(extra);
             } else {
                 row.querySelector('.cart-harga').textContent = rp(it.harga) + ' x ' + it.qty + ' = ' + rp(it.harga * it.qty);
@@ -489,7 +515,7 @@
         hitung();
     }
 
-    // isian dipakai untuk memulihkan lensa custom: {harga, keterangan}
+    // isian dipakai untuk memulihkan lensa custom: {harga, sph, cyl, axis, add}
     function tambahKeKeranjang(kartu, jumlah = 1, isian = null) {
         const jenis  = kartu.dataset.jenis;
         const custom = kartu.dataset.custom === '1';
@@ -497,6 +523,7 @@
         if (custom) {
             // Tiap klik = satu baris baru (satu biji)
             const kunci = 'c' + (++urutCustom);
+            const nilai = v => (v === null || v === undefined) ? '' : String(v);
             keranjang[kunci] = {
                 id: kartu.dataset.id,
                 kode: kartu.dataset.kode,
@@ -507,7 +534,10 @@
                 stok: 1,
                 qty: 1,
                 custom: true,
-                keterangan: isian ? (isian.keterangan || '') : '',
+                sph:  isian ? nilai(isian.sph)  : '',
+                cyl:  isian ? nilai(isian.cyl)  : '',
+                axis: isian ? nilai(isian.axis) : '',
+                add:  isian ? nilai(isian.add)  : '',
             };
             render();
             return;
@@ -528,7 +558,7 @@
                 stok: stok,
                 qty: 0,
                 custom: false,
-                keterangan: '',
+                sph: '', cyl: '', axis: '', add: '',
             };
         }
         keranjang[id].qty = Math.min(keranjang[id].qty + jumlah, stok);
@@ -582,7 +612,9 @@
         if (!kartu) return;
 
         if (kartu.dataset.custom === '1') {
-            tambahKeKeranjang(kartu, 1, { harga: it.harga, keterangan: it.keterangan });
+            tambahKeKeranjang(kartu, 1, {
+                harga: it.harga, sph: it.sph, cyl: it.cyl, axis: it.axis, add: it.add
+            });
         } else {
             tambahKeKeranjang(kartu, parseInt(it.jumlah) || 1);
         }

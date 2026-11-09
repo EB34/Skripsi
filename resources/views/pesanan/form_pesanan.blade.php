@@ -53,7 +53,8 @@
         </div>
     </div>
     <div class="form-text" style="font-size:.68rem">
-        Lensa yang sudah dipilih di satu mata tidak muncul lagi di mata lainnya. SPH/CYL terisi otomatis dari lensa.
+        Lensa yang sudah dipilih di satu mata tidak muncul lagi di mata lainnya. SPH/CYL terisi otomatis dari lensa;
+        untuk lensa custom, AXIS dan ADD juga terisi otomatis dari nota.
     </div>
 </div>
 
@@ -196,12 +197,39 @@
         sel.value = nilai || '';
     }
 
-    // SPH/CYL mengikuti lensa yang dipilih; terkunci kalau ukuran lensa tercatat
+    // AXIS/ADD yang tadinya terisi dari lensa custom dikosongkan lagi kalau mata itu tidak lagi memakai custom
+    function lepasCustom(input) {
+        if (input.dataset.dariCustom === '1') {
+            input.value = '';
+            delete input.dataset.dariCustom;
+        }
+    }
+
+    // Lensa custom: SPH, CYL, AXIS, ADD terisi dan terkunci.
+    // Lensa biasa: SPH/CYL terisi dan terkunci, AXIS/ADD diisi manual.
     function terapkanUkuran() {
         SISI.forEach(function (s) {
-            var u   = cariUnit(el('psn_unit_' + s).value);
-            var sph = el('psn_' + s + '_sphere');
-            var cyl = el('psn_' + s + '_cylinder');
+            var u    = cariUnit(el('psn_unit_' + s).value);
+            var sph  = el('psn_' + s + '_sphere');
+            var cyl  = el('psn_' + s + '_cylinder');
+            var axis = el('psn_' + s + '_axis');
+            var add  = el('psn_' + s + '_add');
+
+            if (u && u.custom) {
+                sph.value  = u.sph  === null ? '' : u.sph;
+                cyl.value  = u.cyl  === null ? '' : u.cyl;
+                axis.value = u.axis === null ? '' : u.axis;
+                add.value  = u.add  === null ? '' : u.add;
+                [sph, cyl, axis, add].forEach(function (i) { i.readOnly = true; });
+                axis.dataset.dariCustom = '1';
+                add.dataset.dariCustom = '1';
+                return;
+            }
+
+            lepasCustom(axis);
+            lepasCustom(add);
+            axis.readOnly = false;
+            add.readOnly = false;
 
             if (u && u.sph !== null) {
                 sph.value = u.sph;
@@ -209,7 +237,7 @@
                 sph.readOnly = true;
                 cyl.readOnly = true;
             } else if (u) {
-                // Lensa custom / ukuran belum tercatat: petugas mengetik sendiri
+                // Ukuran lensa belum tercatat: petugas mengetik sendiri
                 sph.readOnly = false;
                 cyl.readOnly = false;
             } else {
@@ -230,10 +258,14 @@
         terapkanUkuran();
     }
 
-    function kunciUkuran(nilai) {
+    // Di luar mode nota semua kolom ukuran bebas diisi
+    function bukaSemuaUkuran() {
         SISI.forEach(function (s) {
-            el('psn_' + s + '_sphere').readOnly = nilai;
-            el('psn_' + s + '_cylinder').readOnly = nilai;
+            ['sphere', 'cylinder', 'axis', 'add'].forEach(function (k) {
+                var i = el('psn_' + s + '_' + k);
+                i.readOnly = false;
+                lepasCustom(i);
+            });
         });
     }
 
@@ -253,7 +285,7 @@
         } else {
             selOd.innerHTML = '';
             selOs.innerHTML = '';
-            kunciUkuran(false);
+            bukaSemuaUkuran();
         }
     }
 
@@ -277,7 +309,7 @@
     selOs.addEventListener('change', segarkanUnit);
     mode.addEventListener('change', aturMode);
 
-    // ---------- Tukar OD / OS ----------
+    // Tukar OD / OS
     el('psn_tukar').addEventListener('click', function () {
         KOLOM.forEach(function (k) {
             var a = el('psn_od_' + k), b = el('psn_os_' + k);
@@ -287,7 +319,7 @@
         });
 
         if (mode.value === 'nota') {
-            // Tukar pilihan lensa; SPH/CYL ikut menyesuaikan lensa yang baru
+            // Tukar pilihan lensa; ukuran ikut menyesuaikan lensa yang baru
             var od = selOd.value, os = selOs.value;
             isiSelect(selOd, od, os);
             isiSelect(selOs, os, od);

@@ -16,7 +16,16 @@ return new class extends Migration
             $table->unsignedInteger('jumlah_kembali')->default(0);   // frame yang dikembalikan ke stok saat pesanan batal
             $table->decimal('harga_jual', 12, 2);
             $table->decimal('hpp', 12, 2)->default(0);
-            $table->string('keterangan', 150)->nullable();           // BARU: ukuran/spesifikasi yang diketik petugas untuk lensa custom
+
+            // Teks ukuran lensa custom. Disusun otomatis server dari kolom lensa_* di bawah (bukan diketik petugas).
+            $table->string('keterangan', 150)->nullable();
+
+            // Ukuran lensa custom per biji (kosong untuk barang biasa)
+            $table->decimal('lensa_sph', 4, 2)->nullable();
+            $table->decimal('lensa_cyl', 4, 2)->nullable();
+            $table->unsignedSmallInteger('lensa_axis')->nullable();
+            $table->decimal('lensa_add', 4, 2)->nullable();
+
             $table->timestamps();
         });
     }

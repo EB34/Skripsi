@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Penjualan;
 use App\Models\PesananKacamata;
 use App\Models\Refraksi;
+use Closure;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -13,6 +14,20 @@ class PesananService
 {
     public const SISI = ['od', 'os'];
     public const KOLOM_UKURAN = ['sphere', 'cylinder', 'axis', 'add', 'mono_pd'];
+
+    /** Aturan: nilai harus berkelipatan 0,25 (dipakai untuk SPH, CYL, ADD). */
+    private static function aturanKelipatan025(): Closure
+    {
+        return function (string $attribute, $value, Closure $fail) {
+            if ($value === null || $value === '') {
+                return;
+            }
+            $x = (float) $value * 4;
+            if (abs($x - round($x)) > 0.00001) {
+                $fail(':attribute harus berkelipatan 0,25 (contoh: -2.25).');
+            }
+        };
+    }
 
     /** Aturan validasi isian pesanan (nama field: pesanan[...]). */
     public static function aturan(): array
@@ -28,10 +43,10 @@ class PesananService
         ];
 
         foreach (self::SISI as $s) {
-            $aturan["pesanan.{$s}_sphere"]   = ['nullable', 'numeric', 'between:-20,20'];
-            $aturan["pesanan.{$s}_cylinder"] = ['nullable', 'numeric', 'between:-10,10'];
+            $aturan["pesanan.{$s}_sphere"]   = ['nullable', 'numeric', 'between:-20,20', self::aturanKelipatan025()];
+            $aturan["pesanan.{$s}_cylinder"] = ['nullable', 'numeric', 'between:-10,10', self::aturanKelipatan025()];
             $aturan["pesanan.{$s}_axis"]     = ['nullable', 'integer', 'between:0,180'];
-            $aturan["pesanan.{$s}_add"]      = ['nullable', 'numeric', 'between:0,10'];
+            $aturan["pesanan.{$s}_add"]      = ['nullable', 'numeric', 'between:0,10', self::aturanKelipatan025()];
             $aturan["pesanan.{$s}_mono_pd"]  = ['nullable', 'numeric', 'between:10,50'];
         }
 
@@ -82,8 +97,8 @@ class PesananService
                 return [
                     'id'    => $r->id,
                     'label' => $r->tanggal_periksa->format('d/m/Y')
-                        . ' — OD ' . self::fmt($r->od_sphere) . '/' . self::fmt($r->od_cylinder) . '/' . ($r->od_axis ?? '-')
-                        . ' · OS ' . self::fmt($r->os_sphere) . '/' . self::fmt($r->os_cylinder) . '/' . ($r->os_axis ?? '-'),
+                        . ' | OD ' . self::fmt($r->od_sphere) . '/' . self::fmt($r->od_cylinder) . '/' . ($r->od_axis ?? '-')
+                        . ' | OS ' . self::fmt($r->os_sphere) . '/' . self::fmt($r->os_cylinder) . '/' . ($r->os_axis ?? '-'),
                     'nilai' => $nilai,
                 ];
             })->values()->all();
@@ -96,6 +111,8 @@ class PesananService
      * Memecah baris lensa pada nota menjadi unit per biji.
      * 1 baris x 2 biji = 2 unit; dua baris berbeda (-1 dan -2) = 2 unit.
      * Dipakai untuk mengisi pilihan di form dan untuk memvalidasi kiriman form.
+     *
+     * Lensa biasa: SPH/CYL dari data barang. Lensa custom: SPH/CYL/AXIS/ADD dari kolom lensa_* pada baris nota.
      */
     public static function unitLensa(Collection $detailLensa): array
     {
@@ -117,9 +134,10 @@ class PesananService
                     'detail_id' => $d->id,
                     'label'     => $label . ((int) $d->jumlah > 1 ? " (biji {$i})" : ''),
                     'custom'    => $custom,
-                    // Lensa custom tidak punya SPH/CYL di data barang: petugas mengetik sendiri
-                    'sph'       => $custom ? null : self::angka($b->sph ?? null),
-                    'cyl'       => $custom ? null : self::angka($b->cyl ?? null),
+                    'sph'       => $custom ? self::angka($d->lensa_sph) : self::angka($b->sph ?? null),
+                    'cyl'       => $custom ? self::angka($d->lensa_cyl) : self::angka($b->cyl ?? null),
+                    'axis'      => $custom ? ($d->lensa_axis !== null ? (int) $d->lensa_axis : null) : null,
+                    'add'       => $custom ? self::angka($d->lensa_add) : null,
                 ];
             }
         }
@@ -252,10 +270,16 @@ class PesananService
                     $unit = $petaUnit[$kunci];
                     $detailMata[$s] = $unit['detail_id'];
 
-                    // Lensa toko yang ukurannya sudah tercatat: SPH/CYL mengikuti data lensa, bukan kiriman form
+                    // Lensa yang ukurannya sudah tercatat: SPH/CYL mengikuti data lensa, bukan kiriman form
                     if ($unit['sph'] !== null) {
                         $ukuran["{$s}_sphere"]   = $unit['sph'];
                         $ukuran["{$s}_cylinder"] = $unit['cyl'];
+                    }
+
+                    // Lensa custom: AXIS dan ADD juga sudah tercatat di nota
+                    if ($unit['custom']) {
+                        $ukuran["{$s}_axis"] = $unit['axis'];
+                        $ukuran["{$s}_add"]  = $unit['add'];
                     }
                 }
             }

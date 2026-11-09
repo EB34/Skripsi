@@ -15,7 +15,7 @@ class DetailPenjualan extends Model
     // PO lensa custom yang memesan baris nota ini (maksimal satu)
     public function pembelianCustom() { return $this->hasOne(DetailPembelian::class, 'detail_penjualan_id'); }
 
-    // Label nota untuk dropdown PO dan checklist. Kalau mau memakai nomor nota asli, ganti '#'.$pj->id di sini.
+    // Label nota untuk dropdown PO dan checklist
     public function getLabelNotaAttribute(): string
     {
         $pj = $this->penjualan;
@@ -26,5 +26,23 @@ class DetailPenjualan extends Model
         $cust = $pj->customer?->nama;
 
         return 'Nota #' . $pj->id . ' | ' . $pj->tanggal->format('d/m/Y') . ($cust ? ' | ' . $cust : '');
+    }
+
+    /**
+     * Menyusun teks ukuran lensa custom, contoh: "SPH -1.00 | CYL -0.50 | AXIS 90 | ADD +2.00".
+     * Bagian yang kosong dilewati.
+     */
+    public static function susunUkuran($sph, $cyl, $axis, $add): string
+    {
+        $f = fn ($v) => ((float) $v > 0 ? '+' : '') . number_format((float) $v, 2, '.', '');
+        $ada = fn ($v) => $v !== null && $v !== '';
+
+        $bagian = [];
+        if ($ada($sph))  { $bagian[] = 'SPH ' . $f($sph); }
+        if ($ada($cyl))  { $bagian[] = 'CYL ' . $f($cyl); }
+        if ($ada($axis)) { $bagian[] = 'AXIS ' . (int) $axis; }
+        if ($ada($add))  { $bagian[] = 'ADD ' . $f($add); }
+
+        return implode(' | ', $bagian);
     }
 }
