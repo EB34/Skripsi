@@ -64,7 +64,12 @@
                             <div class="rt-sub">Dicatat: {{ $r->pencatat?->nama ?? '-' }}</div>
                         </td>
                         <td>
-                            <a href="{{ route('penjualan.show', $nota) }}" class="mono">{{ $nota->nomor_nota }}</a>
+                            {{-- Nota penjualan hanya bisa dibuka Owner --}}
+                            @if ($isOwner)
+                                <a href="{{ route('penjualan.show', $nota) }}" class="mono">{{ $nota->nomor_nota }}</a>
+                            @else
+                                <span class="mono">{{ $nota->nomor_nota }}</span>
+                            @endif
                             <div class="fw-bold">{{ $nota->customer?->nama ?? '-' }}</div>
                             <div class="rt-sub mono">{{ $nota->customer?->nomor_wa }}</div>
                         </td>

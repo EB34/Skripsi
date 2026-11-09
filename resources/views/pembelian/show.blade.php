@@ -3,11 +3,16 @@
 @section('title', 'Hasil Penerimaan')
 
 @section('content')
+@php
+    // Harga beli hanya terlihat oleh Owner
+    $isOwner = auth()->user()->isOwner();
+@endphp
+
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <h1 class="page-title">Hasil Penerimaan {{ $pembelian->nomor_po }}</h1>
         <div class="text-muted" style="font-size:.85rem">
-            Supplier: {{ $pembelian->supplier->nama }} &nbsp;|&nbsp;
+            Supplier: {{ $pembelian->supplier->nama_perusahaan }} &nbsp;|&nbsp;
             Dipesan: {{ $pembelian->tanggal->format('d M Y') }} &nbsp;|&nbsp;
             Diverifikasi: {{ $pembelian->diterima_pada?->format('d M Y H:i') ?? '-' }}
             &nbsp;|&nbsp; Invoice supplier: {{ $pembelian->nomor_invoice_supplier ?: '-' }}
@@ -26,7 +31,9 @@
                     <th class="text-end">Diterima</th>
                     <th class="text-end">Cacat</th>
                     <th class="text-end">Masuk Stok</th>
-                    <th class="text-end">Harga Beli</th>
+                    @if ($isOwner)
+                        <th class="text-end">Harga Beli</th>
+                    @endif
                     <th>Keterangan Cacat</th>
                 </tr>
             </thead>
@@ -38,7 +45,9 @@
                         <td class="text-end">{{ $d->jumlah_diterima }}</td>
                         <td class="text-end {{ $d->jumlah_cacat > 0 ? 'text-danger fw-semibold' : '' }}">{{ $d->jumlah_cacat }}</td>
                         <td class="text-end">{{ $d->jumlah_diterima - $d->jumlah_cacat }}</td>
-                        <td class="text-end">Rp {{ number_format($d->harga_beli, 0, ',', '.') }}</td>
+                        @if ($isOwner)
+                            <td class="text-end">Rp {{ number_format($d->harga_beli, 0, ',', '.') }}</td>
+                        @endif
                         <td>{{ $d->keterangan_cacat ?? '-' }}</td>
                     </tr>
                 @endforeach

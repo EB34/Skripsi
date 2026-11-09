@@ -252,13 +252,13 @@
 
         // [label, ikon, nama route (null = belum dibuat), pola route untuk menandai menu aktif]
         // Modul Retur: Owner masuk lewat tab Retur ke Supplier, Petugas lewat tab Retur dari Customer.
-        // Kerugian Operasional dan Laporan Laba Rugi hanya untuk Owner.
+        // Transaksi Penjualan (POS), Kerugian Operasional, dan Laporan Laba Rugi hanya untuk Owner.
         $menu = [
             ['Dashboard',           'bi-grid-1x2',        'dashboard',      'dashboard'],
             ['Data Barang',         'bi-box-seam',        'barang.index',   'barang.*'],
             ['Kategori Barang',     'bi-tags',            'kategori.index', 'kategori.*'],
             ['Pengelolaan Stok',    'bi-boxes',           'stok.index',             'stok.*'],
-            ['Transaksi Penjualan', 'bi-cart3',           'penjualan.create', 'penjualan.*'],
+            ...($isOwner ? [['Transaksi Penjualan', 'bi-cart3', 'penjualan.create', 'penjualan.*']] : []),
             ['Pembelian Supplier',  'bi-truck',           'pembelian.index', 'pembelian.*'],
             ['Pesanan Kacamata',    'bi-eyeglasses',      'pesanan.index',  'pesanan.*'],
             ['Data Pelanggan',      'bi-people',          'customer.index', 'customer.*'],

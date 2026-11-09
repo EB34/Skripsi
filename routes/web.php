@@ -38,10 +38,14 @@ Route::middleware('auth')->group(function () {
     Route::resource('supplier', SupplierController::class)->except('show','create','edit');
     Route::resource('customer', CustomerController::class)->except('show');
     Route::post('customer/{customer}/refraksi', [RefraksiController::class, 'store'])->name('refraksi.store');
-    Route::resource('pembelian', PembelianController::class)->only(['index', 'store', 'show']);
+
+    // Pembelian Supplier: Petugas boleh melihat daftar, melihat hasil, dan memverifikasi penerimaan fisik.
+    // Membuat PO (ada harga beli) dipindah ke grup role:owner di bawah.
+    Route::resource('pembelian', PembelianController::class)->only(['index', 'show']);
     Route::post('pembelian/{pembelian}/terima', [PembelianController::class, 'terima'])->name('pembelian.terima');
-    Route::resource('penjualan', PenjualanController::class)->only(['index', 'create', 'store', 'show']);
-    Route::post('penjualan/{penjualan}/tutup', [PenjualanController::class, 'tutup'])->name('penjualan.tutup');   // BARU
+
+    // (Penjualan dan POS dipindah ke grup role:owner di bawah)
+
     Route::resource('barang', BarangController::class)->only(['index', 'store', 'update', 'destroy']);
     // Kategori barang (material frame, tipe lensa, tipe softlens), Owner dan Petugas
     Route::resource('kategori', KategoriBarangController::class)->only(['index', 'store', 'update', 'destroy']);
@@ -65,12 +69,12 @@ Route::middleware('auth')->group(function () {
     Route::put('/lokasi/{lokasi}', [LokasiController::class, 'update'])->name('lokasi.update');
     Route::delete('/lokasi/{lokasi}', [LokasiController::class, 'destroy'])->name('lokasi.destroy');
 
-    // Pesanan Kacamata (Owner dan Petugas). Method selesaikan dan batalkan dibuat di Bagian 2.
+    // Pesanan Kacamata (Owner dan Petugas): buat, ambil, ubah status ke Siap Diambil, dan batalkan.
+    // Selesai (diambil) + pelunasan dipindah ke grup role:owner di bawah.
     Route::get('/pesanan', [PesananController::class, 'index'])->name('pesanan.index');
     Route::post('/pesanan', [PesananController::class, 'store'])->name('pesanan.store');
     Route::post('/pesanan/{pesanan}/ambil', [PesananController::class, 'ambil'])->name('pesanan.ambil');
     Route::patch('/pesanan/{pesanan}/status', [PesananController::class, 'ubahStatus'])->name('pesanan.status');
-    Route::post('/pesanan/{pesanan}/selesai', [PesananController::class, 'selesaikan'])->name('pesanan.selesai');
     Route::post('/pesanan/{pesanan}/batal', [PesananController::class, 'batalkan'])->name('pesanan.batal');
 
     // Log notifikasi WhatsApp dan template pesan (Owner dan Petugas)
@@ -95,9 +99,19 @@ Route::middleware('auth')->group(function () {
 
     // Page khusus Owner
     Route::middleware('role:owner')->group(function () {
+        // Penjualan: POS, riwayat, dan nota hanya untuk Owner (uang masuk dicatat Owner sendiri)
+        Route::resource('penjualan', PenjualanController::class)->only(['index', 'create', 'store', 'show']);
+        Route::post('penjualan/{penjualan}/tutup', [PenjualanController::class, 'tutup'])->name('penjualan.tutup');
+
+        // Pesanan: tombol "Selesai (diambil)" dan input pelunasan hanya Owner
+        Route::post('/pesanan/{pesanan}/selesai', [PesananController::class, 'selesaikan'])->name('pesanan.selesai');
+
+        // Pembelian Supplier: membuat PO (berisi harga beli) hanya Owner
+        Route::post('/pembelian', [PembelianController::class, 'store'])->name('pembelian.store');
+
         // Laporan Laba Rugi: angka keuangan toko hanya untuk Owner
         Route::get('/laporan/labarugi', [LaporanController::class, 'labaRugi'])->name('laporan.labarugi');
-        Route::get('/laporan/labarugi/pdf', [LaporanController::class, 'exportPdf'])->name('laporan.labarugi.pdf');   // BARU
+        Route::get('/laporan/labarugi/pdf', [LaporanController::class, 'exportPdf'])->name('laporan.labarugi.pdf');
 
         // Keputusan barang rusak (retur ke supplier atau write off) = wewenang Owner
         Route::post('/stok/rusak/{barangRusak}/putuskan', [StokController::class, 'putuskanRusak'])->name('stok.rusak.putuskan');

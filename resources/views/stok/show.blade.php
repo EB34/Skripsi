@@ -4,8 +4,9 @@
 @php
     /** @var \App\Models\User $user */
     $user = auth()->user();
-    // Hanya Owner yang boleh mengubah batas stok menipis
-    $bolehAturBatas = $user->isOwner();
+    // Hanya Owner yang boleh mengubah batas stok menipis dan melihat harga beli/nilai persediaan
+    $isOwner        = $user->isOwner();
+    $bolehAturBatas = $isOwner;
 @endphp
 
 <div class="container-fluid">
@@ -47,12 +48,14 @@
                 <div class="fs-4 fw-bold">{{ $barang->stok_rusak }}</div>
             </div></div>
         </div>
-        <div class="col-md-3">
-            <div class="card shadow-sm h-100"><div class="card-body">
-                <div class="text-muted small">Nilai Persediaan</div>
-                <div class="fs-4 fw-bold">Rp {{ number_format($nilai, 0, ',', '.') }}</div>
-            </div></div>
-        </div>
+        @if ($isOwner)
+            <div class="col-md-3">
+                <div class="card shadow-sm h-100"><div class="card-body">
+                    <div class="text-muted small">Nilai Persediaan</div>
+                    <div class="fs-4 fw-bold">Rp {{ number_format($nilai, 0, ',', '.') }}</div>
+                </div></div>
+            </div>
+        @endif
     </div>
 
     <div class="row g-3 mb-3">
@@ -128,7 +131,7 @@
         </div>
     </div>
 
-    {{-- Batch FIFO aktif --}}
+    {{-- Batch FIFO aktif (harga beli dan nilai sisa hanya untuk Owner) --}}
     <div class="card shadow-sm mb-3">
         <div class="card-header fw-semibold">Batch FIFO Aktif (urut dari yang terlama)</div>
         <div class="table-responsive">
@@ -138,8 +141,10 @@
                         <th>Tanggal Masuk</th>
                         <th class="text-end">Diterima</th>
                         <th class="text-end">Sisa</th>
-                        <th class="text-end">Harga Beli</th>
-                        <th class="text-end">Nilai Sisa</th>
+                        @if ($isOwner)
+                            <th class="text-end">Harga Beli</th>
+                            <th class="text-end">Nilai Sisa</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody>
@@ -153,11 +158,13 @@
                         </td>
                         <td class="text-end">{{ $bt->jumlah_diterima }}</td>
                         <td class="text-end">{{ $bt->sisa_jumlah }}</td>
-                        <td class="text-end">Rp {{ number_format($bt->harga_beli, 0, ',', '.') }}</td>
-                        <td class="text-end">Rp {{ number_format($bt->sisa_jumlah * $bt->harga_beli, 0, ',', '.') }}</td>
+                        @if ($isOwner)
+                            <td class="text-end">Rp {{ number_format($bt->harga_beli, 0, ',', '.') }}</td>
+                            <td class="text-end">Rp {{ number_format($bt->sisa_jumlah * $bt->harga_beli, 0, ',', '.') }}</td>
+                        @endif
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="text-center text-muted py-3">Tidak ada batch aktif.</td></tr>
+                    <tr><td colspan="{{ $isOwner ? 5 : 3 }}" class="text-center text-muted py-3">Tidak ada batch aktif.</td></tr>
                 @endforelse
                 </tbody>
             </table>
@@ -256,7 +263,7 @@
     </div>
 </div>
 
-{{-- Modal koreksi stok (opname): boleh mengurangi maupun menambah --}}
+{{-- Modal koreksi stok (opname): boleh mengurangi maupun menambah (menambah hanya Owner, karena butuh harga beli) --}}
 <div class="modal fade" id="modalSesuaikan" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <form method="POST" action="{{ route('stok.sesuaikan', $barang->id) }}" class="modal-content">
@@ -274,23 +281,35 @@
                     <label class="form-label">Jumlah fisik (hasil hitung)</label>
                     <input type="number" name="jumlah_fisik" id="fisik" min="0"
                            data-stok="{{ $barang->stok_tersedia }}"
+                           data-owner="{{ $isOwner ? 1 : 0 }}"
                            value="{{ old('jumlah_fisik') }}" class="form-control" required>
                     <div class="form-text">
-                        Boleh lebih kecil (barang hilang, selisih hitung) atau lebih besar (salah hitung) dari stok sistem.
+                        @if ($isOwner)
+                            Boleh lebih kecil (barang hilang, selisih hitung) atau lebih besar (salah hitung) dari stok sistem.
+                        @else
+                            Boleh lebih kecil (barang hilang, selisih hitung) dari stok sistem. Menambah stok lewat koreksi hanya bisa dilakukan Owner.
+                        @endif
                     </div>
                 </div>
 
-                {{-- Hanya tampil kalau jumlah fisik lebih besar dari stok sistem --}}
-                <div class="mb-3 d-none" id="blok-harga">
-                    <label class="form-label">Harga beli per unit (Rp)</label>
-                    <input type="number" name="harga_beli" id="harga-beli" min="0" step="any"
-                           value="{{ old('harga_beli', $hargaTerakhir) }}" class="form-control"
-                           placeholder="Belum ada riwayat harga, isi manual" disabled>
-                    <div class="form-text">
-                        Stok bertambah <strong id="info-tambah">0</strong> unit. Dicatat sebagai batch FIFO baru
-                        dengan harga ini dan masuk ke lokasi gudang. Terisi otomatis dari harga batch terbaru, boleh diubah.
+                @if ($isOwner)
+                    {{-- Hanya tampil kalau jumlah fisik lebih besar dari stok sistem --}}
+                    <div class="mb-3 d-none" id="blok-harga">
+                        <label class="form-label">Harga beli per unit (Rp)</label>
+                        <input type="number" name="harga_beli" id="harga-beli" min="0" step="any"
+                               value="{{ old('harga_beli', $hargaTerakhir) }}" class="form-control"
+                               placeholder="Belum ada riwayat harga, isi manual" disabled>
+                        <div class="form-text">
+                            Stok bertambah <strong id="info-tambah">0</strong> unit. Dicatat sebagai batch FIFO baru
+                            dengan harga ini dan masuk ke lokasi gudang. Terisi otomatis dari harga batch terbaru, boleh diubah.
+                        </div>
                     </div>
-                </div>
+                @else
+                    {{-- Petugas: penambahan stok ditolak, minta Owner yang melakukan --}}
+                    <div class="alert alert-warning small d-none" id="blok-tolak">
+                        Jumlah fisik lebih besar dari stok sistem. Penambahan stok lewat koreksi hanya bisa dilakukan Owner.
+                    </div>
+                @endif
 
                 <div class="mb-3">
                     <label class="form-label">Alasan</label>
@@ -300,7 +319,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
-                <button type="submit" class="btn btn-warning">Simpan Koreksi</button>
+                <button type="submit" class="btn btn-warning" id="btn-simpan-koreksi">Simpan Koreksi</button>
             </div>
         </form>
     </div>
@@ -310,21 +329,30 @@
 @push('scripts')
 <script>
 (function () {
-    var fisik = document.getElementById('fisik');
-    var blok  = document.getElementById('blok-harga');
-    var harga = document.getElementById('harga-beli');
-    var info  = document.getElementById('info-tambah');
-    var stok  = parseInt(fisik.dataset.stok, 10);
+    var fisik  = document.getElementById('fisik');
+    var owner  = fisik.dataset.owner === '1';
+    var blok   = document.getElementById('blok-harga');   // hanya ada untuk Owner
+    var harga  = document.getElementById('harga-beli');   // hanya ada untuk Owner
+    var info   = document.getElementById('info-tambah');  // hanya ada untuk Owner
+    var tolak  = document.getElementById('blok-tolak');   // hanya ada untuk Petugas
+    var simpan = document.getElementById('btn-simpan-koreksi');
+    var stok   = parseInt(fisik.dataset.stok, 10);
 
-    // Kolom harga hanya aktif kalau jumlah fisik lebih besar dari stok sistem
     function perbarui() {
         var nilai  = parseInt(fisik.value, 10);
         var tambah = (!isNaN(nilai) && nilai > stok) ? nilai - stok : 0;
 
-        blok.classList.toggle('d-none', tambah === 0);
-        harga.disabled = (tambah === 0);
-        harga.required = (tambah > 0);
-        info.textContent = tambah;
+        if (owner) {
+            // Kolom harga hanya aktif kalau jumlah fisik lebih besar dari stok sistem
+            blok.classList.toggle('d-none', tambah === 0);
+            harga.disabled = (tambah === 0);
+            harga.required = (tambah > 0);
+            info.textContent = tambah;
+        } else {
+            // Petugas tidak boleh menambah stok
+            tolak.classList.toggle('d-none', tambah === 0);
+            simpan.disabled = (tambah > 0);
+        }
     }
 
     fisik.addEventListener('input', perbarui);

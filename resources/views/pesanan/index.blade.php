@@ -120,6 +120,8 @@
         : null;
 
     $userLogin = auth()->user();
+    // Selesai (diambil), pelunasan, dan link ke nota penjualan hanya untuk Owner
+    $isOwner   = $userLogin->isOwner();
 @endphp
 
 <div class="d-flex justify-content-between align-items-center">
@@ -204,7 +206,7 @@
                     'os'     => ['sph' => $fmt($p->os_sphere), 'cyl' => $fmt($p->os_cylinder), 'axis' => $p->os_axis ?? '-', 'add' => $num($p->os_add), 'pd' => $num($p->os_mono_pd)],
                 ];
 
-                $bolehKerja = (int) $p->petugas_id === (int) $userLogin->id || $userLogin->isOwner();
+                $bolehKerja = (int) $p->petugas_id === (int) $userLogin->id || $isOwner;
                 $bisaBatal  = in_array($p->status, ['menunggu', 'dikerjakan', 'siap_diambil'], true) && $sisa > 0;
             @endphp
             <tr>
@@ -286,14 +288,19 @@
 
                     @elseif ($p->status === 'siap_diambil')
                         <span class="pill-status st-siap_diambil">Siap Diambil</span>
-                        <button type="button" class="btn-selesai" data-bs-toggle="modal" data-bs-target="#modalSelesai"
-                                data-action="{{ route('pesanan.selesai', $p) }}"
-                                data-nomor="{{ $p->nomor_pesanan }}"
-                                data-total="{{ (float) $nota->total }}"
-                                data-dibayar="{{ $dibayar }}"
-                                data-sisa="{{ $sisa }}">
-                            Selesai (diambil)
-                        </button>
+                        @if ($isOwner)
+                            {{-- Hanya Owner yang boleh menyelesaikan dan menerima pelunasan --}}
+                            <button type="button" class="btn-selesai" data-bs-toggle="modal" data-bs-target="#modalSelesai"
+                                    data-action="{{ route('pesanan.selesai', $p) }}"
+                                    data-nomor="{{ $p->nomor_pesanan }}"
+                                    data-total="{{ (float) $nota->total }}"
+                                    data-dibayar="{{ $dibayar }}"
+                                    data-sisa="{{ $sisa }}">
+                                Selesai (diambil)
+                            </button>
+                        @else
+                            <div class="tgl-kecil mt-1">Pelunasan dan penyelesaian oleh Owner</div>
+                        @endif
 
                     @else
                         <span class="pill-status st-{{ $p->status }}">{{ $p->status_label }}</span>
@@ -317,7 +324,11 @@
                 <td class="text-center">
                     <div>{{ $p->keterangan ?: '-' }}</div>
                     <div class="tgl-kecil mt-1">
-                        <a href="{{ route('penjualan.show', $nota) }}">{{ $nota->nomor_nota }}</a>
+                        @if ($isOwner)
+                            <a href="{{ route('penjualan.show', $nota) }}">{{ $nota->nomor_nota }}</a>
+                        @else
+                            <span class="mono">{{ $nota->nomor_nota }}</span>
+                        @endif
                         @if ($p->status === 'batal')
                             <div class="teks-hangus">DP hangus {{ $rp($dibayar) }}</div>
                             @if ($p->frame_dikembalikan)
@@ -386,7 +397,11 @@
                     @if ($notaTersedia->isEmpty())
                         <div class="alert alert-secondary mb-0">
                             Tidak ada nota yang menunggu pesanan. Pesanan dibuat dari nota yang belum selesai dan berisi frame atau lensa.
-                            Buat transaksinya dulu di <a href="{{ route('penjualan.create') }}">Transaksi Penjualan</a>.
+                            @if ($isOwner)
+                                Buat transaksinya dulu di <a href="{{ route('penjualan.create') }}">Transaksi Penjualan</a>.
+                            @else
+                                Nota dibuat oleh Owner lewat Transaksi Penjualan.
+                            @endif
                         </div>
                     @else
                         <label class="form-label">Pilih nota</label>
@@ -432,7 +447,8 @@
     </div>
 </div>
 
-{{-- ===== Modal: Selesai (pelunasan saat barang diambil) ===== --}}
+{{-- ===== Modal: Selesai (pelunasan saat barang diambil), hanya Owner ===== --}}
+@if ($isOwner)
 <div class="modal fade" id="modalSelesai" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -479,6 +495,7 @@
         </div>
     </div>
 </div>
+@endif
 
 {{-- ===== Modal: Batalkan pesanan (DP hangus) ===== --}}
 <div class="modal fade" id="modalBatal" tabindex="-1" aria-hidden="true">
@@ -615,48 +632,52 @@
         bootstrap.Modal.getOrCreateInstance(document.getElementById('modalPesanan')).show();
     }
 
-    // ----- Modal Selesai (pelunasan) -----
-    const modalSelesai = document.getElementById('modalSelesai');
-    const formSelesai  = document.getElementById('form_selesai');
-    const selMetode    = document.getElementById('selesai_metode');
-    const inUang       = document.getElementById('selesai_uang');
-    const btnSelesai   = document.getElementById('btn_selesai');
-    let sisaSelesai = 0;
+    // ----- Modal Selesai (pelunasan), hanya ada untuk Owner -----
+    (function () {
+        const modalSelesai = document.getElementById('modalSelesai');
+        if (!modalSelesai) return;
 
-    function hitungSelesai() {
-        const tunai = selMetode.value === 'tunai';
-        const uang  = parseFloat(inUang.value) || 0;
+        const formSelesai  = document.getElementById('form_selesai');
+        const selMetode    = document.getElementById('selesai_metode');
+        const inUang       = document.getElementById('selesai_uang');
+        const btnSelesai   = document.getElementById('btn_selesai');
+        let sisaSelesai = 0;
 
-        document.getElementById('selesai_box_uang').classList.toggle('d-none', !tunai);
-        document.getElementById('selesai_kembalian').textContent = rp(Math.max(uang - sisaSelesai, 0));
-        btnSelesai.disabled = sisaSelesai > 0 && tunai && uang < sisaSelesai;
-    }
+        function hitungSelesai() {
+            const tunai = selMetode.value === 'tunai';
+            const uang  = parseFloat(inUang.value) || 0;
 
-    modalSelesai.addEventListener('show.bs.modal', function (e) {
-        const b = e.relatedTarget;
-        sisaSelesai = parseFloat(b.dataset.sisa) || 0;
+            document.getElementById('selesai_box_uang').classList.toggle('d-none', !tunai);
+            document.getElementById('selesai_kembalian').textContent = rp(Math.max(uang - sisaSelesai, 0));
+            btnSelesai.disabled = sisaSelesai > 0 && tunai && uang < sisaSelesai;
+        }
 
-        formSelesai.action = b.dataset.action;
-        document.getElementById('selesai_nomor').textContent   = b.dataset.nomor;
-        document.getElementById('selesai_total').textContent   = rp(parseFloat(b.dataset.total) || 0);
-        document.getElementById('selesai_dibayar').textContent = rp(parseFloat(b.dataset.dibayar) || 0);
-        document.getElementById('selesai_sisa').textContent    = rp(sisaSelesai);
+        modalSelesai.addEventListener('show.bs.modal', function (e) {
+            const b = e.relatedTarget;
+            sisaSelesai = parseFloat(b.dataset.sisa) || 0;
 
-        const lunas = sisaSelesai <= 0;
-        document.getElementById('selesai_lunas').classList.toggle('d-none', !lunas);
-        document.getElementById('selesai_blok_bayar').classList.toggle('d-none', lunas);
-        selMetode.disabled = lunas;
-        inUang.disabled = lunas;
+            formSelesai.action = b.dataset.action;
+            document.getElementById('selesai_nomor').textContent   = b.dataset.nomor;
+            document.getElementById('selesai_total').textContent   = rp(parseFloat(b.dataset.total) || 0);
+            document.getElementById('selesai_dibayar').textContent = rp(parseFloat(b.dataset.dibayar) || 0);
+            document.getElementById('selesai_sisa').textContent    = rp(sisaSelesai);
 
-        selMetode.value = 'tunai';
-        inUang.value = '';
-        btnSelesai.textContent = lunas ? 'Selesaikan' : 'Terima Pelunasan & Selesai';
-        hitungSelesai();
-    });
+            const lunas = sisaSelesai <= 0;
+            document.getElementById('selesai_lunas').classList.toggle('d-none', !lunas);
+            document.getElementById('selesai_blok_bayar').classList.toggle('d-none', lunas);
+            selMetode.disabled = lunas;
+            inUang.disabled = lunas;
 
-    selMetode.addEventListener('change', hitungSelesai);
-    inUang.addEventListener('input', hitungSelesai);
-    formSelesai.addEventListener('submit', function () { btnSelesai.disabled = true; });
+            selMetode.value = 'tunai';
+            inUang.value = '';
+            btnSelesai.textContent = lunas ? 'Selesaikan' : 'Terima Pelunasan & Selesai';
+            hitungSelesai();
+        });
+
+        selMetode.addEventListener('change', hitungSelesai);
+        inUang.addEventListener('input', hitungSelesai);
+        formSelesai.addEventListener('submit', function () { btnSelesai.disabled = true; });
+    })();
 
     // ----- Modal Batalkan -----
     const modalBatal = document.getElementById('modalBatal');

@@ -96,15 +96,20 @@
         'diterima_lengkap'    => ['Diterima Lengkap', 'lengkap'],
     ];
 
+    // Harga beli, total tagihan, dan pembuatan PO hanya untuk Owner
+    $isOwner = auth()->user()->isOwner();
+
     // True kalau form "Buat PO" tadi ditolak validasi, supaya popup-nya dibuka lagi
-    $bukaModalBuat = old('_form') === 'buat';
+    $bukaModalBuat = $isOwner && old('_form') === 'buat';
 @endphp
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="page-title">Pembelian dari Supplier &amp; Penerimaan Fisik</h1>
-    <button type="button" class="btn-abu" data-bs-toggle="modal" data-bs-target="#modalBuatPo">
-        <i class="bi bi-plus-lg"></i> Buat Pesanan Pembelian
-    </button>
+    @if ($isOwner)
+        <button type="button" class="btn-abu" data-bs-toggle="modal" data-bs-target="#modalBuatPo">
+            <i class="bi bi-plus-lg"></i> Buat Pesanan Pembelian
+        </button>
+    @endif
 </div>
 
 <div class="card">
@@ -118,7 +123,9 @@
                     <th>No. PO &amp; Tanggal</th>
                     <th>Supplier</th>
                     <th>Daftar Item Dipesan</th>
-                    <th>Total Tagihan</th>
+                    @if ($isOwner)
+                        <th>Total Tagihan</th>
+                    @endif
                     <th>Status Fisik Barang</th>
                     <th>Aksi</th>
                 </tr>
@@ -151,16 +158,18 @@
                                 </div>
                             @endforeach
                         </td>
-                        @php $potongan = (float) $p->retur->sum('nilai_potongan'); @endphp
-<td class="text-end">
-    @if ($potongan > 0)
-        <div class="text-muted text-decoration-line-through" style="font-size:.7rem">Rp {{ number_format($p->total_tagihan, 0, ',', '.') }}</div>
-        <div>Rp {{ number_format(max($p->total_tagihan - $potongan, 0), 0, ',', '.') }}</div>
-        <div class="text-success" style="font-size:.68rem">Potongan retur Rp {{ number_format($potongan, 0, ',', '.') }}</div>
-    @else
-        Rp {{ number_format($p->total_tagihan, 0, ',', '.') }}
-    @endif
-</td>
+                        @if ($isOwner)
+                            @php $potongan = (float) $p->retur->sum('nilai_potongan'); @endphp
+                            <td class="text-end">
+                                @if ($potongan > 0)
+                                    <div class="text-muted text-decoration-line-through" style="font-size:.7rem">Rp {{ number_format($p->total_tagihan, 0, ',', '.') }}</div>
+                                    <div>Rp {{ number_format(max($p->total_tagihan - $potongan, 0), 0, ',', '.') }}</div>
+                                    <div class="text-success" style="font-size:.68rem">Potongan retur Rp {{ number_format($potongan, 0, ',', '.') }}</div>
+                                @else
+                                    Rp {{ number_format($p->total_tagihan, 0, ',', '.') }}
+                                @endif
+                            </td>
+                        @endif
                         <td class="text-center"><span class="status-po {{ $kelas }}">{{ $teks }}</span></td>
                         <td class="text-center">
                             @if ($p->status === 'menunggu_pengiriman')
@@ -175,7 +184,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="text-center text-muted py-4">Belum ada pesanan pembelian.</td>
+                        <td colspan="{{ $isOwner ? 6 : 5 }}" class="text-center text-muted py-4">Belum ada pesanan pembelian.</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -187,7 +196,8 @@
     {{ $pembelian->links() }}
 </div>
 
-{{-- ===== Popup: Buat Pesanan Pembelian ===== --}}
+{{-- ===== Popup: Buat Pesanan Pembelian (hanya Owner, karena berisi harga beli) ===== --}}
+@if ($isOwner)
 <div class="modal fade" id="modalBuatPo" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
@@ -287,8 +297,9 @@
         </div>
     </div>
 </div>
+@endif
 
-{{-- ===== Popup checklist: satu popup per PO yang masih menunggu ===== --}}
+{{-- ===== Popup checklist: satu popup per PO yang masih menunggu (Owner dan Petugas) ===== --}}
 @foreach ($pembelian as $p)
     @if ($p->status === 'menunggu_pengiriman')
         <div class="modal fade modal-checklist" id="modalTerima{{ $p->id }}" tabindex="-1" aria-hidden="true">
@@ -377,7 +388,8 @@
     @endif
 @endforeach
 
-{{-- Data untuk JavaScript dititipkan di atribut HTML (tanpa Blade di dalam tag script) --}}
+{{-- Data untuk JavaScript popup Buat PO (hanya Owner) --}}
+@if ($isOwner)
 @php
     $barangJs = $barang->map(fn ($b) => ['id' => $b->id, 'teks' => $b->kode_model . ' - ' . $b->merk])->values();
 @endphp
@@ -385,9 +397,11 @@
      data-barang="{{ json_encode($barangJs) }}"
      data-lama="{{ json_encode($bukaModalBuat ? array_values(old('items', [])) : []) }}"
      data-buka="{{ $bukaModalBuat ? '1' : '0' }}"></div>
+@endif
 @endsection
 
 @push('scripts')
+@if ($isOwner)
 <script>
     const dataEl       = document.getElementById('data-pembelian');
     const daftarBarang = JSON.parse(dataEl.dataset.barang);
@@ -580,4 +594,5 @@
     sinkron();
 })();
 </script>
+@endif
 @endpush
