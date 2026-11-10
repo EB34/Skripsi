@@ -27,11 +27,12 @@ class BarangController extends Controller
         };
     }
 
-    // Satu aturan untuk tambah dan ubah. Saat ubah, barang itu sendiri dikecualikan dari cek "unik".
-    private function aturan(?Barang $barang = null): array
+    // Satu aturan untuk tambah dan ubah.
+    // Kode model tidak dicek keunikannya: kode yang sama boleh dipakai berulang (misalnya beberapa frame dengan kode sama).
+    private function aturan(): array
     {
         return [
-            'kode_model' => ['required', 'string', 'max:255', Rule::unique('barang', 'kode_model')->ignore($barang?->id)],
+            'kode_model' => ['required', 'string', 'max:255'],
             'jenis'      => ['required', Rule::in(['frame', 'lensa', 'softlens'])],
             'merk'       => ['required', 'string', 'max:255'],
             // Kategori opsional, tapi kalau diisi harus kategori dengan jenis yang sama dengan jenis barang
@@ -74,26 +75,16 @@ class BarangController extends Controller
         }
     }
 
-    // Pesan "kode sudah dipakai" menyebut barang mana yang memakainya
-    private function pesan(Request $request, ?Barang $barang = null): array
+    // Pesan error untuk validasi selain kode model
+    private function pesan(): array
     {
-        $kode = (string) $request->input('kode_model');
-
-        $pemakai = $kode === '' ? null : Barang::where('kode_model', $kode)
-            ->when($barang, fn ($q) => $q->where('id', '!=', $barang->id))
-            ->first();
-
         return [
-            'kode_model.unique' => $pemakai
-                ? "Kode model {$pemakai->kode_model} sudah dipakai oleh barang {$pemakai->merk}. "
-                    . 'Gunakan kode lain, atau tambah stoknya lewat Pembelian Supplier.'
-                : 'Kode model sudah dipakai barang lain.',
-            'sph.required' => 'SPH wajib diisi untuk lensa dan softlens (kecuali lensa custom).',
+            'sph.required'       => 'SPH wajib diisi untuk lensa dan softlens (kecuali lensa custom).',
             'kategori_id.exists' => 'Kategori tidak sesuai dengan jenis barang.',
-            'gambar.image'    => 'File gambar harus berupa gambar (JPG, PNG, atau WEBP).',
-            'gambar.mimes'    => 'Format gambar harus JPG, PNG, atau WEBP.',
-            'gambar.max'      => 'Ukuran gambar maksimal 2 MB.',
-            'gambar.uploaded' => 'Gambar gagal diunggah. Ukuran file mungkin melebihi batas server (2 MB).',
+            'gambar.image'       => 'File gambar harus berupa gambar (JPG, PNG, atau WEBP).',
+            'gambar.mimes'       => 'Format gambar harus JPG, PNG, atau WEBP.',
+            'gambar.max'         => 'Ukuran gambar maksimal 2 MB.',
+            'gambar.uploaded'    => 'Gambar gagal diunggah. Ukuran file mungkin melebihi batas server (2 MB).',
         ];
     }
 
@@ -134,9 +125,9 @@ class BarangController extends Controller
             ->when($request->q, function ($query, $cari) {
                 $query->where(function ($w) use ($cari) {
                     $w->where('kode_model', 'like', "%{$cari}%")
-                    ->orWhere('merk', 'like', "%{$cari}%")
-                    // Mengetik nama kategori (misalnya "plastik" atau "photochromic") ikut mencari
-                    ->orWhereHas('kategori', fn ($k) => $k->where('nama', 'like', "%{$cari}%"));
+                        ->orWhere('merk', 'like', "%{$cari}%")
+                        // Mengetik nama kategori (misalnya "plastik" atau "photochromic") ikut mencari
+                        ->orWhereHas('kategori', fn ($k) => $k->where('nama', 'like', "%{$cari}%"));
 
                     // Mengetik angka (misalnya -2.25 atau -2,25) mencari lensa/softlens dengan SPH itu
                     $angka = str_replace(',', '.', trim($cari));
@@ -147,8 +138,10 @@ class BarangController extends Controller
             })
             ->when($request->jenis, fn ($query, $jenis) => $query->where('jenis', $jenis))
             ->when($request->kategori, fn ($query, $id) => $query->where('kategori_id', $id))
+            // Diurutkan merk A-Z, lalu kode model A-Z untuk merk yang sama
+            ->orderBy('merk')
             ->orderBy('kode_model')
-            ->paginate(12)
+            ->paginate(15)
             ->withQueryString();
 
         return view('barang.index', [
@@ -160,7 +153,7 @@ class BarangController extends Controller
     public function store(Request $request)
     {
         $this->siapkan($request);
-        $data = $request->validate($this->aturan(), $this->pesan($request), $this->namaAtribut());
+        $data = $request->validate($this->aturan(), $this->pesan(), $this->namaAtribut());
 
         Barang::create($this->prosesGambar($request, $data));
 
@@ -170,7 +163,7 @@ class BarangController extends Controller
     public function update(Request $request, Barang $barang)
     {
         $this->siapkan($request);
-        $data = $request->validate($this->aturan($barang), $this->pesan($request, $barang), $this->namaAtribut());
+        $data = $request->validate($this->aturan(), $this->pesan(), $this->namaAtribut());
 
         $barang->update($this->prosesGambar($request, $data, $barang));
 

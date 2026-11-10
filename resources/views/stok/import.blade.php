@@ -41,7 +41,7 @@
     </form>
 </div>
 
-<div class="panel-abu mt-3">
+<!-- <div class="panel-abu mt-3">
     <div class="fw-semibold mb-2">Format kolom (baris pertama = judul kolom)</div>
     <table class="table table-sm mb-2">
         <thead><tr><th>kode_model</th><th>jumlah</th><th>harga_beli</th><th>tanggal_masuk</th></tr></thead>
@@ -49,7 +49,7 @@
             <tr><td>FR-001</td><td>10</td><td>150000</td><td>2026-11-07 14:30 (Sabtu)</td></tr>
             <tr><td>FR-002</td><td>5</td><td>175000</td><td>2026-11-09 10:15 (Senin)</td></tr>
         </tbody>
-    </table>
+    </table> -->
     <ul class="small text-muted mb-0">
         <li>Kode model harus sudah ada di Data Barang. Lensa custom tidak bisa diisi stok.</li>
         <li>Harga beli angka polos, tanpa titik atau koma ribuan.</li>

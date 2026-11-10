@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // BARU: kategori barang (material frame, tipe lensa, tipe softlens). Dibuat sebelum barang karena barang merujuk ke sini.
+        // Kategori barang (material frame, tipe lensa, tipe softlens). Dibuat sebelum barang karena barang merujuk ke sini.
         Schema::create('kategori_barang', function (Blueprint $table) {
             $table->id();
             $table->enum('jenis', ['frame', 'lensa', 'softlens']);
@@ -23,20 +23,26 @@ return new class extends Migration
 
         Schema::create('barang', function (Blueprint $table) {
             $table->id();
-            $table->string('kode_model')->unique();
+            // DIUBAH: kode_model tidak unik. Kode yang sama boleh dipakai berulang, termasuk untuk merk yang sama.
+            $table->string('kode_model');
             $table->enum('jenis', ['frame', 'lensa', 'softlens']);
             $table->string('merk');
-            // BARU: kategori opsional (Besi, Plastik, Photochromic, dst). Tidak bisa dihapus kalau masih dipakai barang.
+            // Kategori opsional. Tidak bisa dihapus kalau masih dipakai barang.
             $table->foreignId('kategori_id')->nullable()->constrained('kategori_barang')->restrictOnDelete();
-            // Ukuran lensa (hanya terisi untuk jenis lensa). Satu kode model lensa = satu ukuran.
+            // Ukuran lensa (hanya terisi untuk jenis lensa).
             $table->decimal('sph', 4, 2)->nullable();
             $table->decimal('cyl', 4, 2)->nullable();
             $table->decimal('harga_jual', 12, 2)->default(0);
             $table->unsignedInteger('stok_tersedia')->default(0);
             $table->unsignedInteger('stok_rusak')->default(0);
-            $table->unsignedInteger('stok_minimum')->default(5); // batas "stok menipis", bisa diatur per barang
-            $table->boolean('tanpa_stok')->default(false);       // lensa custom yang dipesan manual ke supplier
+            $table->unsignedInteger('stok_minimum')->default(5);
+            $table->boolean('tanpa_stok')->default(false);
             $table->timestamps();
+
+            // BARU: index untuk pengurutan merk A-Z, lalu kode model
+            $table->index(['merk', 'kode_model']);
+            // BARU: index untuk pencarian kode model
+            $table->index('kode_model');
         });
     }
 
