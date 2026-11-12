@@ -65,7 +65,9 @@
         </div>
     </div>
     <div class="d-flex flex-wrap gap-2">
+        @if ($isOwner)
         <a href="{{ route('penjualan.create') }}" class="btn-abu btn-kuning"><i class="bi bi-cart3"></i> Kasir Baru</a>
+        @endif
         <a href="{{ route('pesanan.index') }}" class="btn-abu"><i class="bi bi-eyeglasses"></i> Pesanan Kacamata</a>
         @if ($isOwner)
             <a href="{{ route('pembelian.index') }}" class="btn-abu"><i class="bi bi-truck"></i> Buat PO ke Supplier</a>

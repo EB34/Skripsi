@@ -342,11 +342,14 @@ class StokController extends Controller
             ->with('success', 'Batas stok menipis diubah menjadi ' . $barang->stok_minimum . ' unit.');
     }
 
-    /** Daftar barang yang masih punya stok layak jual, untuk dropdown "Lapor Barang Rusak". */
-    private function opsiBarang()
-    {
-        return Barang::where('stok_tersedia', '>', 0)
+        /** Daftar barang yang masih punya stok layak jual, untuk dropdown "Lapor Barang Rusak". */
+        private function opsiBarang()
+        {
+            // jenis, sph, cyl ikut diambil supaya accessor ukuran_label (SPH/CYL) bisa dipakai di dropdown
+            return Barang::where('stok_tersedia', '>', 0)
             ->orderBy('kode_model')
-            ->get(['id', 'kode_model', 'merk', 'stok_tersedia']);
-    }
+            ->orderBy('sph')
+            ->orderBy('cyl')
+            ->get(['id', 'kode_model', 'merk', 'jenis', 'sph', 'cyl', 'stok_tersedia']);
+            }
 }

@@ -91,7 +91,7 @@ class CustomerController extends Controller
             })
             ->with('refraksi.user', 'penjualan.detail.barang')
             ->orderBy('nama')
-            ->paginate(10)
+            ->paginate(20)
             ->withQueryString();
 
         return view('customer.index', compact('customer'));

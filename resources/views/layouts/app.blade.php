@@ -276,7 +276,7 @@
             </div>
             <div class="brand-alamat">
                 <i class="bi bi-building"></i>
-                Jl. RE.Martadinata No.76, Surakarta
+                Jl. ABC No.67, Surakarta
             </div>
         </div>
     </a>

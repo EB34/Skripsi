@@ -9,12 +9,33 @@
     $bolehAturBatas = $isOwner;
 @endphp
 
+<style>
+    .btn-kembali {
+        background-color: #dadada;
+        border: none;
+        border-radius: 8px;
+        color: #212529;
+        padding: 8px 16px;
+        transition: background-color 0.15s ease-in-out;
+    }
+    .btn-kembali:hover {
+        background-color: #bdbdbd;
+        color: #212529;
+    }
+    .ukuran-lensa { font-weight: 600; color: #1f5f87; }
+</style>
+
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <a href="{{ route('stok.index') }}" class="text-decoration-none small">&larr; Kembali ke Monitoring Stok</a>
+            <a href="{{ route('stok.index') }}" class="btn btn-kembali mb-2">&larr; Kembali ke Monitoring Stok</a>
             <h4 class="mb-0">{{ $barang->kode_model }} &ndash; {{ $barang->merk }}</h4>
-            <div class="text-muted">{{ $barang->kategori_label }}</div>
+            <div class="text-muted">
+                {{ $barang->kategori_label }}
+                @if ($barang->ukuran_label)
+                    &middot; <span class="ukuran-lensa">{{ $barang->ukuran_label }}</span>
+                @endif
+            </div>
         </div>
         <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#modalSesuaikan">
             Koreksi Stok
@@ -222,6 +243,14 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                {{-- Barang yang dipindah (supaya jelas ukuran yang mana) --}}
+                <div class="alert alert-light border small">
+                    <div class="fw-semibold">{{ $barang->kode_model }} &ndash; {{ $barang->merk }}</div>
+                    @if ($barang->ukuran_label)
+                        <div class="ukuran-lensa">{{ $barang->ukuran_label }}</div>
+                    @endif
+                </div>
+
                 <div class="mb-3">
                     <label class="form-label">Dari lokasi</label>
                     <select name="dari_lokasi_id" class="form-select" required>
@@ -273,6 +302,15 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                {{-- Barang yang dikoreksi: kode, merk, jenis, dan ukuran (SPH/CYL) --}}
+                <div class="alert alert-light border small">
+                    <div class="fw-semibold">{{ $barang->kode_model }} &ndash; {{ $barang->merk }}</div>
+                    <div class="text-muted">{{ $barang->kategori_label }}</div>
+                    @if ($barang->ukuran_label)
+                        <div class="ukuran-lensa">{{ $barang->ukuran_label }}</div>
+                    @endif
+                </div>
+
                 <div class="mb-3">
                     <label class="form-label">Stok di sistem</label>
                     <input type="text" class="form-control" value="{{ $barang->stok_tersedia }}" disabled>

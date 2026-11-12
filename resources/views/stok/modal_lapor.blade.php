@@ -13,7 +13,7 @@
                         <option value="">Pilih barang...</option>
                         @foreach($opsiBarang as $o)
                             <option value="{{ $o->id }}" @selected(old('barang_id') == $o->id)>
-                                {{ $o->kode_model }} - {{ $o->merk }} (stok {{ $o->stok_tersedia }})
+                                {{ $o->kode_model }} - {{ $o->merk }}{{ $o->ukuran_label ? ' (' . $o->ukuran_label . ')' : '' }} (stok {{ $o->stok_tersedia }})
                             </option>
                         @endforeach
                     </select>

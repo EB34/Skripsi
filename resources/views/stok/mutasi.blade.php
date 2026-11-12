@@ -36,6 +36,9 @@
 
     .naik { color: #1f9d4a; font-weight: 600; }
     .turun { color: #e03131; font-weight: 600; }
+
+    /* Ukuran lensa/softlens (SPH / CYL) */
+    .ukuran-lensa { font-size: .7rem; font-weight: 600; color: #1f5f87; white-space: nowrap; }
 </style>
 @endpush
 
@@ -116,6 +119,9 @@
                         <td>
                             <div class="fw-bold">{{ ucfirst($m->barang?->jenis ?? '') }} {{ $m->barang?->merk ?? '-' }}</div>
                             <div class="mono sku-kecil">{{ $m->barang?->kode_model }}</div>
+                            @if ($m->barang?->ukuran_label)
+                                <div class="ukuran-lensa">{{ $m->barang->ukuran_label }}</div>
+                            @endif
                         </td>
                         <td class="fw-semibold">{{ $m->jenis_label }}</td>
                         <td>

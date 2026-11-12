@@ -132,10 +132,10 @@
 
         <button type="submit" class="btn-signin">Sign In</button>
 
-        <a href="#" class="forgot"
+        <!-- <a href="#" class="forgot"
            onclick="alert('Silakan hubungi Owner untuk mereset password Anda.'); return false;">
             Forgot Password?
-        </a>
+        </a> -->
     </form>
 </div>
 

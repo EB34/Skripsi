@@ -49,6 +49,9 @@
     }
     .btn-reset:hover { color: #000; text-decoration: underline; }
     .label-kategori { font-size: .78rem; color: #555; white-space: nowrap; }
+
+    /* Ukuran lensa/softlens (SPH / CYL) */
+    .ukuran-lensa { font-weight: 600; color: #1f5f87; white-space: nowrap; }
 </style>
 @endpush
 
@@ -102,6 +105,7 @@
                         <th>Nama Barang</th>
                         <th>Kategori</th>
                         <th>Material/Tipe</th>
+                        <th>Ukuran</th>
                         <th>Stok Fisik</th>
                         <th>Batas Min</th>
                         <th style="min-width: 170px;">Indikator Stok</th>
@@ -127,6 +131,13 @@
                         <td class="fw-bold">{{ ucfirst($b->jenis) }} {{ $b->merk }}</td>
                         <td>{{ $b->kategori_label }}</td>
                         <td>{{ $b->kategori?->nama ?? '-' }}</td>
+                        <td>
+                            @if ($b->ukuran_label)
+                                <span class="ukuran-lensa">{{ $b->ukuran_label }}</span>
+                            @else
+                                -
+                            @endif
+                        </td>
                         <td class="fw-bold">{{ $b->stok_tersedia }}</td>
                         <td>{{ $b->stok_minimum }}</td>
                         <td>
@@ -158,7 +169,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="9" class="text-muted py-4">
+                        <td colspan="10" class="text-muted py-4">
                             @if(request('cari'))
                                 Tidak ada barang yang cocok dengan "{{ request('cari') }}".
                             @else

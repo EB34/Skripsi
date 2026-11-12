@@ -1,9 +1,24 @@
 @extends('layouts.app')
 
 @section('content')
+<style>
+    .btn-kembali {
+        background-color: #dadada;
+        border: none;
+        border-radius: 8px;
+        color: #212529;
+        padding: 8px 16px;
+        transition: background-color 0.15s ease-in-out;
+    }
+    .btn-kembali:hover {
+        background-color: #bdbdbd;
+        color: #212529;
+    }
+</style>
+
 <div class="container-fluid">
     <div class="mb-3">
-        <a href="{{ route('stok.index') }}" class="text-decoration-none small">&larr; Kembali ke Pengelolaan Stok</a>
+        <a href="{{ route('stok.index') }}" class="btn btn-kembali mb-2">&larr; Kembali ke Monitoring Stok</a>
         <h4 class="mb-0">Kelola Lokasi Stok</h4>
         <div class="text-muted small">
             Tempat penyimpanan barang, misalnya gudang, etalase, atau laci. Barang dari PO selalu masuk ke gudang.

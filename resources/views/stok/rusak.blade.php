@@ -38,6 +38,9 @@
         text-decoration: none;
     }
     .btn-reset:hover { color: #000; text-decoration: underline; }
+
+    /* Ukuran lensa/softlens (SPH / CYL) */
+    .ukuran-lensa { font-size: .7rem; font-weight: 600; color: #1f5f87; white-space: nowrap; }
 </style>
 @endpush
 
@@ -98,6 +101,9 @@
                         <td>
                             <div class="fw-bold">{{ ucfirst($r->barang?->jenis ?? '') }} {{ $r->barang?->merk ?? '-' }}</div>
                             <div class="mono sku-kecil">{{ $r->barang?->kode_model }}</div>
+                            @if ($r->barang?->ukuran_label)
+                                <div class="ukuran-lensa">{{ $r->barang->ukuran_label }}</div>
+                            @endif
                         </td>
                         <td>{{ $r->jumlah }} pcs</td>
                         <td class="fw-bold">{{ $r->alasan }}</td>
@@ -112,7 +118,8 @@
                                                 data-bs-toggle="modal" data-bs-target="#modalRetur"
                                                 data-action="{{ route('stok.rusak.putuskan', $r->id) }}"
                                                 data-barang-id="{{ $r->barang_id }}"
-                                                data-kode="{{ $r->barang?->kode_model }}">
+                                                data-kode="{{ $r->barang?->kode_model }}"
+                                                data-ukuran="{{ $r->barang?->ukuran_label }}">
                                             Retur<br>Supplier
                                         </button>
 
@@ -163,7 +170,10 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="mb-3">Barang: <strong id="returKode">-</strong></p>
+                    <p class="mb-3">
+                        Barang: <strong id="returKode">-</strong>
+                        <span class="ukuran-lensa d-block" id="returUkuran"></span>
+                    </p>
 
                     <label class="form-label">PO asal (supplier)</label>
                     <select name="pembelian_id" id="returPembelian" class="form-select mb-1" required>
@@ -207,6 +217,7 @@
         const poPerBarang = JSON.parse(form.dataset.po || '{}');
 
         const kode      = document.getElementById('returKode');
+        const ukuran    = document.getElementById('returUkuran');
         const selectPo  = document.getElementById('returPembelian');
         const alasan    = document.getElementById('returAlasan');
         const kosong    = document.getElementById('returKosong');
@@ -216,6 +227,7 @@
             btn.addEventListener('click', function () {
                 form.action = btn.dataset.action;
                 kode.textContent = btn.dataset.kode || '-';
+                ukuran.textContent = btn.dataset.ukuran || '';   // kosong untuk frame
 
                 // Isi dropdown PO sesuai barang yang dipilih
                 const daftar = poPerBarang[btn.dataset.barangId] || [];
