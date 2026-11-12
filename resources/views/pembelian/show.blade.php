@@ -16,18 +16,18 @@
     <a href="{{ route('pembelian.index') }}" class="btn-abu"><i class="bi bi-arrow-left"></i> Kembali</a>
 </div>
 
-<div class="card mb-4">
+<div class="tabel-abu mb-4">
     <div class="table-responsive">
-        <table class="table mb-0 align-middle" style="font-size:.85rem">
-            <thead class="table-light">
+        <table class="table align-middle">
+            <thead>
                 <tr>
                     <th>Barang</th>
-                    <th class="text-end">Dipesan</th>
-                    <th class="text-end">Diterima</th>
-                    <th class="text-end">Cacat</th>
-                    <th class="text-end">Masuk Stok</th>
+                    <th>Dipesan</th>
+                    <th>Diterima</th>
+                    <th>Cacat</th>
+                    <th>Masuk Stok</th>
                     @if ($isOwner)
-                        <th class="text-end">Harga Beli</th>
+                        <th>Harga Beli</th>
                     @endif
                     <th>Keterangan Cacat</th>
                 </tr>
@@ -36,8 +36,9 @@
                 @foreach ($pembelian->detail as $d)
                     @php $isCustom = $d->detail_penjualan_id !== null; @endphp
                     <tr>
-                        <td>
-                            {{ $d->barang->merk }} <span class="mono text-muted">({{ $d->barang->kode_model }})</span>
+                        <td class="text-start">
+                            <span class="fw-bold">{{ $d->barang->merk }}</span>
+                            <span class="mono text-muted">({{ $d->barang->kode_model }})</span>
                             @if ($isCustom)
                                 <span class="badge bg-secondary">Custom</span>
                                 <div class="text-muted" style="font-size:.72rem">
@@ -48,12 +49,12 @@
                                 </div>
                             @endif
                         </td>
-                        <td class="text-end">{{ $d->jumlah_dipesan }}</td>
-                        <td class="text-end">{{ $d->jumlah_diterima }}</td>
-                        <td class="text-end {{ $d->jumlah_cacat > 0 ? 'text-danger fw-semibold' : '' }}">{{ $d->jumlah_cacat }}</td>
-                        <td class="text-end">{{ $isCustom ? '-' : $d->jumlah_diterima - $d->jumlah_cacat }}</td>
+                        <td>{{ $d->jumlah_dipesan }}</td>
+                        <td>{{ $d->jumlah_diterima }}</td>
+                        <td class="{{ $d->jumlah_cacat > 0 ? 'text-danger fw-semibold' : '' }}">{{ $d->jumlah_cacat }}</td>
+                        <td class="fw-bold">{{ $isCustom ? '-' : $d->jumlah_diterima - $d->jumlah_cacat }}</td>
                         @if ($isOwner)
-                            <td class="text-end">Rp {{ number_format($d->harga_beli, 0, ',', '.') }}</td>
+                            <td>Rp {{ number_format($d->harga_beli, 0, ',', '.') }}</td>
                         @endif
                         <td>{{ $d->keterangan_cacat ?? '-' }}</td>
                     </tr>

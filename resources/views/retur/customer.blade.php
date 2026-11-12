@@ -37,7 +37,7 @@
         </button>
     </div>
 
-    <div class="rt-tabel">
+    <div class="tabel-abu">
         <div class="table-responsive">
             <table class="table align-middle">
                 <thead>

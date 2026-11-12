@@ -257,6 +257,64 @@
             border-color: #d9a400;
             box-shadow: 0 0 0 .2rem rgba(253, 203, 47, .35);
         }
+        
+        /*Template table*/
+        .tabel-abu {
+            background: #fff;
+            border: 1px solid #d9d9d9;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .tabel-abu table {
+            margin: 0;
+            font-size: .8rem;
+            color: #1e1e1e;
+            --bs-table-bg: transparent;
+        }
+        .tabel-abu thead th {
+            background: #ececec;
+            font-size: .8rem;
+            font-weight: 700;
+            text-align: center;
+            vertical-align: middle;
+            border-bottom: 1px solid #d9d9d9;
+            border-left: 1px solid #d9d9d9;
+            padding: 14px 10px;
+            white-space: nowrap;
+        }
+        .tabel-abu tbody td {
+            text-align: center;
+            vertical-align: middle;
+            border-left: 1px solid #e3e3e3;
+            border-bottom: 1px solid #e3e3e3;
+            padding: 14px 10px;
+        }
+        .tabel-abu thead th:first-child,
+        .tabel-abu tbody td:first-child { border-left: 0; }
+        .tabel-abu tbody tr:last-child td { border-bottom: 0; }
+        .tabel-abu tfoot td {
+            text-align: center;
+            vertical-align: middle;
+            font-weight: 700;
+            background: #f7f7f7;
+            border-top: 1px solid #d9d9d9;
+            border-left: 1px solid #e3e3e3;
+            border-bottom: 0;
+            padding: 14px 10px;
+        }
+.tabel-abu tfoot td:first-child { border-left: 0; }
+
+        .btn-restock {
+            display: inline-block;
+            background: #d9d9d9; color: #1e1e1e;
+            border-radius: 6px;
+            padding: 6px 14px;
+            font-size: .75rem; font-weight: 500;
+            text-decoration: none;
+            border: 0;
+            cursor: pointer;
+        }
+        .btn-restock:hover { background: #c9c9c9; color: #000; }
     </style>
     @stack('styles')
 </head>

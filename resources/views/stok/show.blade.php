@@ -23,6 +23,39 @@
         color: #212529;
     }
     .ukuran-lensa { font-weight: 600; color: #1f5f87; }
+
+    /* .tabel-abu-stok {
+            background: #fff;
+            border: 1px solid #d9d9d9;
+            overflow: hidden;
+        }
+        .tabel-abu-stok table {
+            margin: 0;
+            font-size: .8rem;
+            color: #1e1e1e;
+            --bs-table-bg: transparent;
+        }
+        .tabel-abu-stok thead th {
+            background: #ececec;
+            font-size: .8rem;
+            font-weight: 700;
+            text-align: center;
+            vertical-align: middle;
+            border-bottom: 1px solid #d9d9d9;
+            border-left: 1px solid #d9d9d9;
+            padding: 14px 10px;
+            white-space: nowrap;
+        }
+        .tabel-abu-stok tbody td {
+            text-align: center;
+            vertical-align: middle;
+            border-left: 1px solid #e3e3e3;
+            border-bottom: 1px solid #e3e3e3;
+            padding: 14px 10px;
+        }
+        .tabel-abu-stok thead th:first-child,
+        .tabel-abu-stok tbody td:first-child { border-left: 0; }
+        .tabel-abu-stok tbody tr:last-child td { border-bottom: 0; } */
 </style>
 
 <div class="container-fluid">
@@ -82,7 +115,7 @@
     <div class="row g-3 mb-3">
         {{-- Stok per lokasi --}}
         <div class="col-md-7">
-            <div class="card shadow-sm h-100">
+            <div class="tabel-abu card shadow-sm h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span class="fw-semibold">Stok per Lokasi</span>
                     @if($barang->stok_tersedia > 0)
@@ -91,7 +124,7 @@
                         </button>
                     @endif
                 </div>
-                <div class="table-responsive">
+                <div class="tabel-responsive">
                     <table class="table table-sm align-middle mb-0">
                         <thead class="table-light">
                             <tr>
@@ -125,7 +158,7 @@
 
         {{-- Pengaturan barang: batas stok menipis hanya bisa diubah Owner --}}
         <div class="col-md-5">
-            <div class="card shadow-sm h-100">
+            <div class="tabel-abu card shadow-sm h-100">
                 <div class="card-header fw-semibold">Pengaturan Barang</div>
                 <div class="card-body">
                     @if($bolehAturBatas)
@@ -135,7 +168,7 @@
                             <label class="form-label">Batas Stok Menipis</label>
                             <div class="d-flex gap-2">
                                 <input type="number" name="stok_minimum" min="0" max="100000"
-                                       value="{{ old('stok_minimum', $barang->stok_minimum) }}" class="form-control" required>
+                                value="{{ old('stok_minimum', $barang->stok_minimum) }}" class="form-control" required>
                                 <button class="btn btn-outline-secondary">Simpan</button>
                             </div>
                             <div class="form-text">Dianggap menipis jika stok &le; angka ini.</div>
@@ -153,18 +186,18 @@
     </div>
 
     {{-- Batch FIFO aktif (harga beli dan nilai sisa hanya untuk Owner) --}}
-    <div class="card shadow-sm mb-3">
+    <div class="tabel-abu card shadow-sm mb-3">
         <div class="card-header fw-semibold">Batch FIFO Aktif (urut dari yang terlama)</div>
         <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
                 <thead class="table-light">
                     <tr>
                         <th>Tanggal Masuk</th>
-                        <th class="text-end">Diterima</th>
-                        <th class="text-end">Sisa</th>
+                        <th>Diterima</th>
+                        <th>Sisa</th>
                         @if ($isOwner)
-                            <th class="text-end">Harga Beli</th>
-                            <th class="text-end">Nilai Sisa</th>
+                            <th>Harga Beli</th>
+                            <th>Nilai Sisa</th>
                         @endif
                     </tr>
                 </thead>
@@ -177,11 +210,11 @@
                                 <span class="badge bg-warning text-dark">Koreksi</span>
                             @endif
                         </td>
-                        <td class="text-end">{{ $bt->jumlah_diterima }}</td>
-                        <td class="text-end">{{ $bt->sisa_jumlah }}</td>
+                        <td>{{ $bt->jumlah_diterima }}</td>
+                        <td>{{ $bt->sisa_jumlah }}</td>
                         @if ($isOwner)
-                            <td class="text-end">Rp {{ number_format($bt->harga_beli, 0, ',', '.') }}</td>
-                            <td class="text-end">Rp {{ number_format($bt->sisa_jumlah * $bt->harga_beli, 0, ',', '.') }}</td>
+                            <td>Rp {{ number_format($bt->harga_beli, 0, ',', '.') }}</td>
+                            <td>Rp {{ number_format($bt->sisa_jumlah * $bt->harga_beli, 0, ',', '.') }}</td>
                         @endif
                     </tr>
                 @empty
@@ -193,7 +226,7 @@
     </div>
 
     {{-- Kartu stok --}}
-    <div class="card shadow-sm">
+    <div class="tabel-abu card shadow-sm">
         <div class="card-header fw-semibold">Kartu Stok (Riwayat Mutasi Barang Ini)</div>
         <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
@@ -229,7 +262,12 @@
                 </tbody>
             </table>
         </div>
-        <div class="card-footer">{{ $mutasi->links() }}</div>
+            <!-- <div class="card-footer small text-muted">
+                Total {{ $mutasi->total() }} catatan mutasi. (Halaman {{ $mutasi->currentPage() }} dari {{ $mutasi->lastPage() }})
+            </div> -->
+            <!-- @if($mutasi->hasPages()) -->
+            <div class="card-footer">{{ $mutasi->links() }}</div>
+            <!-- @endif -->
     </div>
 </div>
 

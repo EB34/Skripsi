@@ -28,10 +28,10 @@
     </button>
 </div>
 
-<div class="card">
+<div class="tabel-abu">
     <div class="table-responsive">
-        <table class="table table-hover mb-0 align-middle">
-            <thead class="table-light">
+        <table class="table align-middle">
+            <thead>
                 <tr>
                     <th>Nama Perusahaan</th>
                     <th>Contact Person</th>

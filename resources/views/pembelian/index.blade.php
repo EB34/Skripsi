@@ -5,8 +5,8 @@
 @push('styles')
 <style>
     button.btn-abu { cursor: pointer; }
-    .po-tabel th { background: #efefef; font-size: .78rem; text-align: center; vertical-align: middle; }
-    .po-tabel td { font-size: .8rem; vertical-align: middle; }
+    /* .po-tabel th { background: #efefef; font-size: .78rem; text-align: center; vertical-align: middle; }
+    .po-tabel td { font-size: .8rem; vertical-align: middle; } */
     .status-po {
         display: inline-block; font-size: .7rem; font-weight: 600;
         padding: 3px 10px; border-radius: 6px; border: 1px solid;
@@ -121,12 +121,13 @@
     @endif
 </div>
 
-<div class="card">
-    <div class="card-header bg-white fw-semibold" style="font-size:.85rem">
-        <i class="bi bi-journal-text"></i> Riwayat Surat Pesanan (PO) &amp; Status Penerimaan Barang
-    </div>
+<div class="fw-semibold mb-2" style="font-size:.85rem">
+    <i class="bi bi-journal-text"></i> Riwayat Surat Pesanan (PO) &amp; Status Penerimaan Barang
+</div>
+
+<div class="tabel-abu">
     <div class="table-responsive">
-        <table class="table po-tabel mb-0">
+        <table class="table align-middle">
             <thead>
                 <tr>
                     <th>No. PO &amp; Tanggal</th>
@@ -151,7 +152,7 @@
                             @endif
                         </td>
                         <td>{{ $p->supplier->nama_perusahaan }}</td>
-                        <td>
+                        <td class="text-start">
                             @foreach ($p->detail as $d)
                                 <div>
                                     {{ $d->jumlah_dipesan }} pcs {{ $d->barang->merk }}
@@ -178,7 +179,7 @@
                         </td>
                         @if ($isOwner)
                             @php $potongan = (float) $p->retur->sum('nilai_potongan'); @endphp
-                            <td class="text-end">
+                            <td>
                                 @if ($potongan > 0)
                                     <div class="text-muted text-decoration-line-through" style="font-size:.7rem">Rp {{ number_format($p->total_tagihan, 0, ',', '.') }}</div>
                                     <div>Rp {{ number_format(max($p->total_tagihan - $potongan, 0), 0, ',', '.') }}</div>

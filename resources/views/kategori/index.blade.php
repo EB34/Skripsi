@@ -5,8 +5,8 @@
 @push('styles')
 <style>
     button.btn-abu { cursor: pointer; }
-    .tabel-kategori { background: #efefef; border-radius: 10px; padding: 6px 14px; margin-top: 16px; }
-    .tabel-kategori table { margin-bottom: 0; --bs-table-bg: transparent; }
+    /* .tabel-kategori { background: #efefef; border-radius: 10px; padding: 6px 14px; margin-top: 16px; }
+    .tabel-kategori table { margin-bottom: 0; --bs-table-bg: transparent; } */
 </style>
 @endpush
 
@@ -47,7 +47,7 @@
     @endif
 </form>
 
-<div class="tabel-kategori">
+<div class="tabel-abu mt-3">
     <div class="table-responsive">
         <table class="table align-middle">
             <thead>

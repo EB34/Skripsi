@@ -22,9 +22,9 @@
         padding: 10px 16px; font-size: .8rem; margin-bottom: 14px;
     }
     .rt-filter { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
-    .rt-tabel { background: #fff; border: 1px solid #d9d9d9; border-radius: 10px; overflow: hidden; }
+    /* .rt-tabel { background: #fff; border: 1px solid #d9d9d9; border-radius: 10px; overflow: hidden; }
     .rt-tabel table { margin: 0; font-size: .8rem; color: #1e1e1e; }
-    .rt-tabel thead th { background: #d9d9d9; font-size: .75rem; font-weight: 600; border-bottom: 0; white-space: nowrap; }
+    .rt-tabel thead th { background: #d9d9d9; font-size: .75rem; font-weight: 600; border-bottom: 0; white-space: nowrap; } */
     .rt-status {
         display: inline-block; font-size: .7rem; font-weight: 600;
         padding: 3px 10px; border-radius: 999px; border: 1px solid;

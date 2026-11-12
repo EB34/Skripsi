@@ -105,7 +105,7 @@
     </div>
 
     {{-- Daftar --}}
-    <div class="krg-tabel">
+    <div class="tabel-abu">
         <div class="table-responsive">
             <table class="table align-middle">
                 <thead>
@@ -151,7 +151,7 @@
                 @if ($daftar->total() > 0)
                     <tfoot>
                         <tr>
-                            <td colspan="4" class="text-end fw-bold">Total sesuai filter ({{ $daftar->total() }} catatan)</td>
+                            <td colspan="4" class="text-end pe-4">Total sesuai filter ({{ $daftar->total() }} catatan)</td>
                             <td class="krg-angka">{{ number_format($totalTampil, 0, ',', '.') }}</td>
                             <td colspan="2"></td>
                         </tr>
